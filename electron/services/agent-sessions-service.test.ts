@@ -174,6 +174,7 @@ describe("agent-sessions-service", () => {
         id: "match-id",
         title: "fix-pty-reconnect",
         updatedAt: "2026-07-23T00:00:00.000Z",
+        createdAt: expect.any(String),
         fromTranscript: true,
       },
     ]);
@@ -212,33 +213,76 @@ describe("agent-sessions-service", () => {
     expect(entries[0].title).toBe("arrumar o parser de holerite");
   });
 
-  it("sorts Codex sessions by the same timestamp it displays, even when file mtime and the index disagree", async () => {
+  it("orders Codex sessions by when they started, not by the index's last activity", async () => {
     const roots = await makeRoots();
     const cwd = "/home/dev/my-project";
     const dayDir = join(roots.codexRoot, "sessions", "2026", "07", "23");
     await mkdir(dayDir, { recursive: true });
 
-    // Written to disk in this order (so file mtime says "older" is newer),
-    // but the index says otherwise — the index's updated_at must win.
+    // The older conversation was resumed last (index says it is the most
+    // recently active); it still keeps its place below the newer one.
     await writeFile(
-      join(dayDir, "rollout-older-by-index.jsonl"),
-      JSON.stringify({ type: "session_meta", payload: { id: "older-by-index", cwd } }),
+      join(dayDir, "rollout-started-first.jsonl"),
+      JSON.stringify({
+        timestamp: "2026-07-23T10:00:00.000Z",
+        type: "session_meta",
+        payload: { id: "started-first", cwd, timestamp: "2026-07-23T10:00:00.000Z" },
+      }),
     );
-    await new Promise((resolve) => setTimeout(resolve, 5));
     await writeFile(
-      join(dayDir, "rollout-newer-by-index.jsonl"),
-      JSON.stringify({ type: "session_meta", payload: { id: "newer-by-index", cwd } }),
+      join(dayDir, "rollout-started-second.jsonl"),
+      JSON.stringify({
+        timestamp: "2026-07-23T11:00:00.000Z",
+        type: "session_meta",
+        payload: { id: "started-second", cwd, timestamp: "2026-07-23T11:00:00.000Z" },
+      }),
     );
     await writeFile(
       join(roots.codexRoot, "session_index.jsonl"),
       [
-        JSON.stringify({ id: "older-by-index", updated_at: "2020-01-01T00:00:00Z" }),
-        JSON.stringify({ id: "newer-by-index", updated_at: "2030-01-01T00:00:00Z" }),
+        JSON.stringify({ id: "started-first", updated_at: "2030-01-01T00:00:00Z" }),
+        JSON.stringify({ id: "started-second", updated_at: "2026-07-23T11:30:00Z" }),
       ].join("\n"),
     );
 
     const entries = await listResumableSessions(cwd, "codex", undefined, roots);
-    expect(entries.map((entry) => entry.id)).toEqual(["newer-by-index", "older-by-index"]);
+    expect(entries.map((entry) => entry.id)).toEqual(["started-second", "started-first"]);
+    expect(entries[1].createdAt).toBe("2026-07-23T10:00:00.000Z");
+    expect(entries[1].updatedAt).toBe("2030-01-01T00:00:00.000Z");
+  });
+
+  it("hides the rollouts Codex opens for its own subagents", async () => {
+    const roots = await makeRoots();
+    const cwd = "/home/dev/my-project";
+    const dayDir = join(roots.codexRoot, "sessions", "2026", "09", "05");
+    await mkdir(dayDir, { recursive: true });
+
+    await writeFile(
+      join(dayDir, "rollout-parent.jsonl"),
+      JSON.stringify({
+        timestamp: "2026-09-05T13:49:35.124Z",
+        type: "session_meta",
+        payload: { id: "parent", cwd, source: "cli" },
+      }),
+    );
+    // Same cwd, but a thread the CLI spawned for a subagent — the user never
+    // started it and cannot meaningfully resume it.
+    await writeFile(
+      join(dayDir, "rollout-subagent.jsonl"),
+      JSON.stringify({
+        timestamp: "2026-09-05T13:51:24.515Z",
+        type: "session_meta",
+        payload: {
+          id: "subagent",
+          cwd,
+          forked_from_id: "parent",
+          source: { subagent: { thread_spawn: { parent_thread_id: "parent", depth: 1 } } },
+        },
+      }),
+    );
+
+    const entries = await listResumableSessions(cwd, "codex", undefined, roots);
+    expect(entries.map((entry) => entry.id)).toEqual(["parent"]);
   });
 
   it("lists Cursor sessions from agent-transcripts, stripping timestamp/user_query tags from the title", async () => {
@@ -269,9 +313,36 @@ describe("agent-sessions-service", () => {
         id: chatId,
         title: "Explore the repo",
         updatedAt: expect.any(String),
+        createdAt: expect.any(String),
         fromTranscript: true,
       },
     ]);
+  });
+
+  it("names a Cursor chat after the question, not the attachment manifest Cursor prepends", async () => {
+    const roots = await makeRoots();
+    const cwd = "/home/dev/my-project";
+    const chatId = "chat-img";
+    const dir = join(roots.cursorProjectsRoot, "home-dev-my-project", "agent-transcripts", chatId);
+    await mkdir(dir, { recursive: true });
+
+    await writeFile(
+      join(dir, `${chatId}.jsonl`),
+      JSON.stringify({
+        role: "user",
+        message: {
+          content: [
+            {
+              type: "text",
+              text: "<image_files>\nThe following images were provided by the user and saved to disk:\n1. /tmp/image-1.jpg\n</image_files>\n<timestamp>Saturday, Sep 5, 2026</timestamp>\n<user_query>\nPreciso refazer a tela de login do app\n</user_query>",
+            },
+          ],
+        },
+      }),
+    );
+
+    const entries = await listResumableSessions(cwd, "cursor", undefined, roots);
+    expect(entries[0].title).toBe("refazer a tela de login do app");
   });
 
   it("collapses the copies a --resume fork leaves behind, keeping the newest", async () => {
@@ -302,6 +373,75 @@ describe("agent-sessions-service", () => {
 
     const entries = await listResumableSessions(cwd, "claude", undefined, roots);
     expect(entries.map((entry) => entry.id)).toEqual(["unrelated", "fork"]);
+  });
+
+  it("keeps a Claude conversation in place after it is resumed and its file rewritten", async () => {
+    const roots = await makeRoots();
+    const cwd = "/home/dev/my-project";
+    const dir = join(roots.claudeProjectsRoot, "-home-dev-my-project");
+    await mkdir(dir, { recursive: true });
+
+    const record = (uuid: string, timestamp: string, content: string) =>
+      JSON.stringify({ type: "user", uuid, timestamp, message: { content } });
+
+    // Three conversations started an hour apart. The oldest is the one the
+    // user resumed just now, so its file is the most recently written.
+    await writeFile(join(dir, "first.jsonl"), record("f", "2026-09-05T10:00:00.000Z", "primeira"));
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    await writeFile(join(dir, "second.jsonl"), record("s", "2026-09-05T11:00:00.000Z", "segunda"));
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    await writeFile(join(dir, "third.jsonl"), record("t", "2026-09-05T12:00:00.000Z", "terceira"));
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    await writeFile(
+      join(dir, "first.jsonl"),
+      [
+        record("f", "2026-09-05T10:00:00.000Z", "primeira"),
+        record("f2", "2026-09-05T15:00:00.000Z", "continuando a primeira"),
+      ].join("\n"),
+    );
+
+    const entries = await listResumableSessions(cwd, "claude", undefined, roots);
+    expect(entries.map((entry) => entry.id)).toEqual(["third", "second", "first"]);
+    expect(entries[2].createdAt).toBe("2026-09-05T10:00:00.000Z");
+    expect(Date.parse(entries[2].updatedAt)).toBeGreaterThan(Date.parse(entries[0].updatedAt));
+  });
+
+  it("gives a --resume fork the place of the conversation it copied", async () => {
+    const roots = await makeRoots();
+    const cwd = "/home/dev/my-project";
+    const dir = join(roots.claudeProjectsRoot, "-home-dev-my-project");
+    await mkdir(dir, { recursive: true });
+
+    const opening = {
+      type: "user",
+      uuid: "opening",
+      timestamp: "2026-09-05T09:00:00.000Z",
+      message: { content: "conversa antiga" },
+    };
+    await writeFile(join(dir, "ancestor.jsonl"), JSON.stringify(opening));
+    await writeFile(
+      join(dir, "newer.jsonl"),
+      JSON.stringify({
+        type: "user",
+        uuid: "n",
+        timestamp: "2026-09-05T12:00:00.000Z",
+        message: { content: "conversa nova" },
+      }),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    // The fork replays the ancestor's records, timestamps included, into a
+    // brand new file — the newest on disk, but still the oldest conversation.
+    await writeFile(
+      join(dir, "fork.jsonl"),
+      [
+        JSON.stringify(opening),
+        JSON.stringify({ type: "user", uuid: "later", timestamp: "2026-09-05T14:00:00.000Z", message: { content: "e agora?" } }),
+      ].join("\n"),
+    );
+
+    const entries = await listResumableSessions(cwd, "claude", undefined, roots);
+    expect(entries.map((entry) => entry.id)).toEqual(["newer", "fork"]);
+    expect(entries[1].createdAt).toBe("2026-09-05T09:00:00.000Z");
   });
 
   it("keeps transcripts without an opening record id in the list instead of merging them", async () => {
@@ -430,6 +570,7 @@ describe("agent-sessions-service", () => {
 
     const entries = await listResumableSessions(cwd, "claude", undefined, roots);
     expect(Object.keys(entries[0]).sort()).toEqual([
+      "createdAt",
       "fromTranscript",
       "id",
       "title",

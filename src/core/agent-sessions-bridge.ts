@@ -4,6 +4,7 @@ export interface ResumableSessionEntry {
   id: string;
   title: string;
   updatedAt: string;
+  createdAt: string;
   fromTranscript?: boolean;
 }
 

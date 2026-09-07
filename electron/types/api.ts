@@ -127,7 +127,11 @@ export interface McpServersPayload {
 export interface ResumableSessionEntry {
   id: string;
   title: string;
+  /** Last time the transcript was written — what a fresh spawn is matched on. */
   updatedAt: string;
+  /** When the conversation started. Fixed for its whole life, so the list is
+   * ordered by it and does not reshuffle when one is resumed. */
+  createdAt: string;
   /** True when `title` came from the opening user message, not a timestamp. */
   fromTranscript: boolean;
 }

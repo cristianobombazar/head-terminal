@@ -7,7 +7,7 @@
   flex-direction: column;
   min-height: 0;
   padding: var(--pane-gap);
-  padding-bottom: 0;
+  padding-bottom: 2px;
   background: transparent;
 }
 
@@ -109,6 +109,14 @@
 
 .terminal-pane-header--active .terminal-pane-header__name {
   color: var(--text-primary);
+}
+
+/* Inactive panes keep their signal (status color) but the chrome around it
+   steps back so the active pane is the one that reads as "lit". */
+.terminal-pane-header:not(.terminal-pane-header--active) .terminal-pane-header__agent,
+.terminal-pane-header:not(.terminal-pane-header--active) .terminal-pane-header__branch,
+.terminal-pane-header:not(.terminal-pane-header--active) .terminal-pane-header__context {
+  opacity: 0.7;
 }
 
 .terminal-pane-header__title {
@@ -461,6 +469,26 @@
     border-color var(--transition-fast);
 }
 
+/* Split/restart/close are secondary: faint until the pointer is on the
+   header (or something inside it has focus), so the eye lands on the name,
+   the conversation and the status instead of a row of icons. */
+.terminal-pane-header__action,
+.terminal-pane-header__close {
+  opacity: 0.45;
+  transition:
+    opacity var(--transition-fast),
+    color var(--transition-fast),
+    background var(--transition-fast),
+    border-color var(--transition-fast);
+}
+
+.terminal-pane-header:hover .terminal-pane-header__action,
+.terminal-pane-header:hover .terminal-pane-header__close,
+.terminal-pane-header:focus-within .terminal-pane-header__action,
+.terminal-pane-header:focus-within .terminal-pane-header__close {
+  opacity: 1;
+}
+
 .terminal-pane-header__action:hover,
 .terminal-pane-header__mic:hover {
   color: var(--text-primary);
@@ -479,8 +507,9 @@
 .resume-session-menu {
   position: fixed;
   z-index: var(--z-menu);
-  width: 300px;
-  max-height: 320px;
+  width: 440px;
+  max-width: calc(100vw - 24px);
+  /* Height is set inline from the room left under the trigger. */
   overflow-y: auto;
   padding: 4px;
   border: 1px solid var(--border-default);
@@ -556,10 +585,10 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 10px;
   flex: 1;
   min-width: 0;
-  padding: 7px 10px;
+  padding: 8px 10px;
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
@@ -578,13 +607,14 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: var(--font-xs);
+  font-size: var(--font-sm);
 }
 
 .resume-session-menu__item-time {
   flex-shrink: 0;
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
 }
 
 /* Voice mic button */
@@ -664,20 +694,25 @@
   scrollbar-gutter: stable;
 }
 
-/* Status bar */
+/* Status bar — a quiet caption under the panes, not another card: it only
+   says which repo/branch the session is on. */
 
 .terminal-status-bar {
   display: flex;
   align-items: center;
   flex-shrink: 0;
-  min-height: 26px;
-  margin-top: var(--pane-gap);
-  padding: 0 12px;
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
-  background: var(--surface-toolbar);
-  color: var(--text-secondary);
+  min-height: 24px;
+  padding: 0 10px;
+  color: var(--text-muted);
   font-size: var(--font-xs);
+}
+
+.terminal-status-bar .git-branch-badge {
+  color: var(--text-muted);
+}
+
+.terminal-status-bar .git-branch-badge__branch {
+  color: var(--text-secondary);
 }
 
 /* Overlays */

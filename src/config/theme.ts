@@ -103,9 +103,24 @@ function resolveWindowsPty(): ITerminalOptions["windowsPty"] {
   return { backend: "conpty", buildNumber: info.windowsBuild };
 }
 
+/**
+ * `convertEol` faz todo LF virar CR+LF. Isso serve para shells Unix que
+ * emitem "
+" solto, mas quebra o ConPTY: ele usa LF puro para descer uma
+ * linha mantendo a coluna, e com a conversão o cursor volta para a coluna 0.
+ * Uma linha da UI do Claude Code que deveria começar na coluna 2 é então
+ * escrita na coluna 0; no frame seguinte o ConPTY só reenvia o trecho que
+ * ele acha que mudou (colunas 2+) e as duas primeiras colunas ficam com o
+ * texto deslocado — os "caracteres fantasma" na borda esquerda do pane.
+ */
+function resolveConvertEol(): boolean {
+  const info = getCachedPlatformInfo();
+  return info?.platform !== "win32";
+}
+
 export function createTerminalOptions(): ITerminalOptions {
   return {
-    convertEol: true,
+    convertEol: resolveConvertEol(),
     cursorBlink: false,
     cursorStyle: "block",
     fontSize: loadFontSize(),

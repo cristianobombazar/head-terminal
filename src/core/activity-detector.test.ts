@@ -156,3 +156,41 @@ describe("ActivityDetector", () => {
     expect(changes).toContain("working");
   });
 });
+
+describe("ActivityDetector after the process ended", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("ignores output that lands after exit and never decays to waiting_input", () => {
+    // The pty exit event is handled synchronously while the last frames of
+    // output still sit in the rAF writer; they reach the detector after
+    // onExit and used to revive a dead pane as "working", then "aguardando".
+    const changes: string[] = [];
+    const detector = new ActivityDetector((activity) => changes.push(activity));
+
+    detector.onRunning();
+    vi.advanceTimersByTime(2000);
+    detector.onData("⠋ finishing up\n");
+    detector.onExit(0);
+    detector.onData("bye\n");
+    vi.advanceTimersByTime(5000);
+
+    expect(changes[changes.length - 1]).toBe("exited");
+  });
+
+  it("keeps a failed spawn as error even if stray output arrives", () => {
+    const changes: string[] = [];
+    const detector = new ActivityDetector((activity) => changes.push(activity));
+
+    detector.onError();
+    detector.onData("$ ");
+    vi.advanceTimersByTime(5000);
+
+    expect(changes[changes.length - 1]).toBe("error");
+  });
+});

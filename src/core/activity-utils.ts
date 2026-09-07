@@ -31,6 +31,28 @@ export function getSessionActivity(
   return aggregatePaneActivity(paneRuntime, paneIds);
 }
 
+/**
+ * When the session's aggregated activity started. Only panes that share the
+ * winning activity count: the sidebar used to take the newest timestamp of
+ * any pane, so "Executando há 3s" could be timed by a sibling pane that had
+ * just gone idle while the working one had been at it for minutes.
+ */
+export function getSessionActivitySince(
+  session: AgentSession,
+  paneRuntime: Record<string, PaneRuntime>,
+): number | undefined {
+  const paneIds = collectPaneIds(session.layout);
+  const activity = aggregatePaneActivity(paneRuntime, paneIds);
+  let since = 0;
+  for (const paneId of paneIds) {
+    const runtime = paneRuntime[paneId];
+    if (runtime?.activity === activity && runtime.activitySince > since) {
+      since = runtime.activitySince;
+    }
+  }
+  return since || undefined;
+}
+
 export function countWorkingSessions(
   sessions: AgentSession[],
   paneRuntime: Record<string, PaneRuntime>,

@@ -223,7 +223,7 @@ function persistWorkspaceState(
     sessions: state.sessions,
     activeSessionId: state.activeSessionId,
     activePaneId: state.activePaneId,
-    paneResumeSessionIds: state.paneResumeAnchors,
+    paneResumeAnchors: state.paneResumeAnchors,
     conversationLabels: state.conversationLabels,
   });
 

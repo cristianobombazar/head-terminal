@@ -14,6 +14,7 @@ import { getClaudeAccountProfile } from "../../core/claude-accounts";
 import {
   countWorkingSessions,
   getSessionActivity,
+  getSessionActivitySince,
 } from "../../core/activity-utils";
 import { flipAnimate } from "../../core/flip-animate";
 import { collectPaneIds } from "../../core/session-layout";
@@ -158,16 +159,9 @@ const SessionListItem = memo(function SessionListItem({
   const activity = useSessionStore((state) =>
     getSessionActivity(session, state.paneRuntime),
   );
-  const activitySince = useSessionStore((state) => {
-    let bestSince = 0;
-    for (const paneId of paneIds) {
-      const since = state.paneRuntime[paneId]?.activitySince ?? 0;
-      if (since > bestSince) {
-        bestSince = since;
-      }
-    }
-    return bestSince || undefined;
-  });
+  const activitySince = useSessionStore((state) =>
+    getSessionActivitySince(session, state.paneRuntime),
+  );
   const dotsKey = useSessionStore((state) =>
     paneDotsKey(paneIds, state.paneRuntime),
   );

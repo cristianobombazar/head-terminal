@@ -53,7 +53,10 @@ describe("createRafPtyWriter", () => {
     expect(onFrame).toHaveBeenCalledWith("hello");
   });
 
-  it("skips onFrameText while the pane is hidden but still writes", () => {
+  it("still runs onFrameText for every frame so hidden panes keep their activity", () => {
+    // Regression: hidden panes used to skip the detectors, which let the
+    // ActivityDetector's idle timer demote a working background session to
+    // "waiting_input" seconds after the user switched away.
     const writes: unknown[] = [];
     const onFrame = vi.fn();
     const terminal = {
@@ -63,16 +66,12 @@ describe("createRafPtyWriter", () => {
       },
     } as Pick<Terminal, "write">;
 
-    const write = createRafPtyWriter(
-      terminal as Terminal,
-      onFrame,
-      () => true,
-    );
-    write(encode("secret"));
+    const write = createRafPtyWriter(terminal as Terminal, onFrame);
+    write(encode("⠋ Running tests"));
     flushRaf();
 
     expect(writes).toHaveLength(1);
-    expect(onFrame).not.toHaveBeenCalled();
+    expect(onFrame).toHaveBeenCalledWith("⠋ Running tests");
   });
 
   it("caps a frame and continues on the next rAF", () => {

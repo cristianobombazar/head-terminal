@@ -222,24 +222,16 @@ export function fitTerminal(
     return null;
   }
 
-  let cols = proposed.cols;
-  const viewport = terminal.element?.querySelector<HTMLElement>(".xterm-viewport");
-  if (viewport) {
-    const scrollbarWidth = viewport.offsetWidth - viewport.clientWidth;
-    if (scrollbarWidth > 0) {
-      const cellWidth = viewport.clientWidth / proposed.cols;
-      cols = Math.max(
-        MIN_FIT_COLS,
-        proposed.cols - Math.ceil(scrollbarWidth / Math.max(cellWidth, 1)),
-      );
-    }
+  // The proposal already keeps the scrollbar's width free of glyphs (the
+  // addon subtracts its default scrollbar width from the available width);
+  // subtracting the viewport's own scrollbar on top of that gave up two to
+  // four more columns and left a black strip down the right of every pane.
+  const { cols, rows } = proposed;
+  if (cols !== terminal.cols || rows !== terminal.rows) {
+    terminal.resize(cols, rows);
   }
 
-  if (cols !== terminal.cols || proposed.rows !== terminal.rows) {
-    terminal.resize(cols, proposed.rows);
-  }
-
-  return { cols, rows: proposed.rows };
+  return { cols, rows };
 }
 
 const frameTextDecoder = new TextDecoder();
@@ -260,7 +252,6 @@ function concatChunks(chunks: Uint8Array[], bytes: number): Uint8Array {
 export function createRafPtyWriter(
   terminal: Terminal,
   onFrameText?: (text: string) => void,
-  isHidden?: () => boolean,
 ): (data: Uint8Array) => void {
   const pending: Uint8Array[] = [];
   let rafId: number | null = null;
@@ -294,12 +285,20 @@ export function createRafPtyWriter(
     // parsing only — and switching sessions becomes a pure visibility flip
     // onto an already-correct, already-scrolled screen instead of replaying
     // a backlog.
-    const skipDetectors = isHidden?.() === true || !onFrameText;
-    if (skipDetectors) {
-      terminal.write(merged);
-    } else {
+    //
+    // The detectors run for hidden panes too. Skipping them while a pane
+    // was off-screen starved its ActivityDetector of output: its idle timer
+    // kept running, decided the agent had gone quiet and demoted a session
+    // that was still working to "waiting_input" a few seconds after the
+    // user switched away — the sidebar dot lied for every background
+    // session. It also blinded the folder-trust auto-accept, the context
+    // meter and the workspace detector for anything not on screen. The
+    // callback fires after xterm parsed the frame, so it never delays paint.
+    if (onFrameText) {
       const text = frameTextDecoder.decode(merged);
       terminal.write(merged, () => onFrameText(text));
+    } else {
+      terminal.write(merged);
     }
 
     if (pending.length > 0 && rafId === null) {

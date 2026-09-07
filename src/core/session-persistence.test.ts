@@ -23,7 +23,7 @@ describe("workspace conversation persistence", () => {
       sessions: [session],
       activeSessionId: session.id,
       activePaneId: paneId,
-      paneResumeSessionIds: { [paneId]: cliSessionId },
+      paneResumeAnchors: { [paneId]: cliSessionId },
       conversationLabels: { [cliSessionId]: "Teste salvo" },
     });
 
@@ -90,5 +90,36 @@ describe("workspace save failures", () => {
         String(call[0]).includes("workspace.save_failed"),
       ),
     ).toBe(true);
+  });
+});
+
+describe("workspaceFromStore fed the whole session store (the close-time flush)", () => {
+  it("persists the detected anchors, not the pending --resume ids", () => {
+    const session = createEmptySession({
+      id: "sess-close",
+      title: "Claude",
+      cwd: "/tmp",
+      agentProfileId: "claude",
+    });
+    const paneId = collectPaneIds(session.layout)[0];
+    // Shape of useSessionStore.getState(): a pane that opened a brand new
+    // conversation during the session has an anchor but no --resume id yet.
+    const store = {
+      sessions: [session],
+      activeSessionId: session.id,
+      activePaneId: paneId,
+      paneResumeSessionIds: {},
+      paneResumeAnchors: { [paneId]: "detected-during-session" },
+      conversationLabels: {},
+    };
+
+    const persisted = workspaceFromStore(store);
+
+    expect(persisted.paneResumeSessionIds).toEqual({
+      [paneId]: "detected-during-session",
+    });
+    expect(hydrateWorkspace(persisted).paneResumeSessionIds[paneId]).toBe(
+      "detected-during-session",
+    );
   });
 });

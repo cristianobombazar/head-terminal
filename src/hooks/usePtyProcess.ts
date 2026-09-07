@@ -43,7 +43,6 @@ interface UsePtyProcessOptions {
   restartKey: number;
   continueConversation: boolean;
   resumeSessionId?: string;
-  isVisible: boolean;
   onWorkspacePath: (path: string) => void;
 }
 
@@ -65,7 +64,6 @@ export function usePtyProcess({
   restartKey,
   continueConversation,
   resumeSessionId,
-  isVisible,
   onWorkspacePath,
 }: UsePtyProcessOptions): void {
   const registerPtyWriter = useSessionStore((state) => state.registerPtyWriter);
@@ -79,8 +77,6 @@ export function usePtyProcess({
   const updatePaneContext = useSessionStore(
     (state) => state.updatePaneContext,
   );
-  const isVisibleRef = useRef(isVisible);
-  isVisibleRef.current = isVisible;
   const previousDisposeRef = useRef(Promise.resolve<void>(undefined));
 
   useEffect(() => {
@@ -225,6 +221,12 @@ export function usePtyProcess({
         const writePtyData = createRafPtyWriter(
           terminal,
           (frameText) => {
+            // xterm invokes this after parsing, possibly after a restart
+            // already tore this effect down and reset the pane's runtime to
+            // "starting": a stale detector must not overwrite the new one.
+            if (disposed) {
+              return;
+            }
             activityDetector.onData(frameText);
             workspaceDetector.onData(frameText);
             contextMeter.onData(frameText);
@@ -239,7 +241,6 @@ export function usePtyProcess({
               bridge?.write(CLAUDE_FOLDER_TRUST_CONFIRM_KEY);
             });
           },
-          () => !isVisibleRef.current,
         );
 
         listeners.push(

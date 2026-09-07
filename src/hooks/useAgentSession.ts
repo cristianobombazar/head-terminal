@@ -123,7 +123,6 @@ export function useAgentSession({
     restartKey,
     continueConversation,
     resumeSessionId,
-    isVisible,
     onWorkspacePath,
   });
 

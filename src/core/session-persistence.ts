@@ -59,7 +59,11 @@ export function workspaceFromStore(state: {
   sessions: AgentSession[];
   activeSessionId: string | null;
   activePaneId: string | null;
-  paneResumeSessionIds?: Record<string, string>;
+  /** The store's *detected* anchors (paneResumeAnchors), not its pending
+   * `--resume` ids (paneResumeSessionIds): the anchors are what a restart
+   * needs. Named after the store field so the whole store can be passed in
+   * as-is without silently persisting the wrong map. */
+  paneResumeAnchors?: Record<string, string>;
   conversationLabels?: Record<string, string>;
 }): PersistedWorkspace {
   return {
@@ -67,7 +71,7 @@ export function workspaceFromStore(state: {
     activeSessionId: state.activeSessionId,
     activePaneId: state.activePaneId,
     sessions: state.sessions.map(toPersistedSession),
-    paneResumeSessionIds: state.paneResumeSessionIds,
+    paneResumeSessionIds: state.paneResumeAnchors,
     conversationLabels: state.conversationLabels,
   };
 }

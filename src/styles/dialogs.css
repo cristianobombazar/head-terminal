@@ -122,64 +122,6 @@
   animation: dialog-pop 0.16s ease-out both;
 }
 
-.session-diff {
-  width: min(720px, 90vw);
-}
-
-.session-diff__body {
-  max-height: 60vh;
-  min-height: 0;
-  margin: 16px 20px 0;
-  overflow: auto;
-  background: var(--surface-input);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-sm);
-  padding: 8px;
-  font-family: var(--font-mono);
-  font-size: 12px;
-}
-
-.session-diff__body pre {
-  margin: 0;
-  white-space: pre-wrap;
-  word-break: break-all;
-}
-
-.session-diff__line--add {
-  color: var(--status-working);
-}
-
-.session-diff__line--del {
-  color: var(--status-error);
-}
-
-.session-diff__line--file {
-  color: var(--text-primary);
-  font-weight: 700;
-}
-
-.session-diff__line--meta {
-  color: var(--status-waiting);
-}
-
-.terminal-status-bar__diff {
-  margin-left: auto;
-  padding: 1px 8px;
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--text-secondary);
-  font: inherit;
-  font-size: 11px;
-  cursor: pointer;
-}
-
-.terminal-status-bar__diff:hover {
-  color: var(--text-primary);
-  border-color: var(--border-strong);
-  background: var(--bg-3);
-}
-
 .create-session-dialog__worktree {
   display: flex;
   align-items: center;

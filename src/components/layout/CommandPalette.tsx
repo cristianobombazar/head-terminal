@@ -3,6 +3,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { sendAgentCommand } from "../../actions/sendAgentCommand";
 import { PALETTE_ACTIONS } from "../../config/toolbar";
 import { exportDiagnosticBundle } from "../../core/export-diagnostic";
+import { runGhostGlyphDiagnostic } from "../../core/ghost-glyph-diagnostic";
+import { logError } from "../../core/logger";
 import { useSessionStore } from "../../core/session-manager";
 import { getTerminal } from "../../core/terminal-registry";
 import { isVoiceInputSupported, toggleVoiceInput } from "../../core/voice-input";
@@ -125,6 +127,14 @@ export function CommandPalette({
         }
       } else if (command === "__export_diagnostic__") {
         void exportDiagnosticBundle();
+      } else if (command === "__ghost_diagnostic__") {
+        const handle = activePaneId ? getTerminal(activePaneId) : undefined;
+        if (activePaneId && handle) {
+          const report = runGhostGlyphDiagnostic(activePaneId, handle.terminal);
+          void window.headTerminal.clipboard.writeText(report).catch((error) => {
+            logError("terminal.ghost_diagnostic_copy_failed", error);
+          });
+        }
       } else if (command.startsWith("/")) {
         sendAgentCommand(command);
       }

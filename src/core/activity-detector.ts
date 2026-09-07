@@ -74,6 +74,15 @@ export class ActivityDetector {
       return;
     }
 
+    // The pty exit event is handled synchronously while the last frames of
+    // output are still queued in the rAF writer, so they reach the detector
+    // after onExit. Nothing a dead process printed can put it back to work,
+    // and letting it through revived the pane as "working" and then decayed
+    // it to a bogus "aguardando" instead of "encerrado".
+    if (this.currentActivity === "exited" || this.currentActivity === "error") {
+      return;
+    }
+
     const detected = this.detectFromRecentText();
     if (detected) {
       // An explicit signal is trustworthy whenever it shows up, and proves

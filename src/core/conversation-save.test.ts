@@ -74,10 +74,7 @@ describe("conversation save lifecycle", () => {
 
     expect(headerName()).toBe("nova conversa");
     expect(
-      workspaceFromStore({
-        ...useSessionStore.getState(),
-        paneResumeSessionIds: useSessionStore.getState().paneResumeAnchors,
-      }).paneResumeSessionIds,
+      workspaceFromStore(useSessionStore.getState()).paneResumeSessionIds,
     ).toEqual({});
 
     const fallback = {
@@ -115,10 +112,7 @@ describe("conversation save lifecycle", () => {
 
     expect(headerName()).toBe("test");
 
-    const persisted = workspaceFromStore({
-      ...useSessionStore.getState(),
-      paneResumeSessionIds: useSessionStore.getState().paneResumeAnchors,
-    });
+    const persisted = workspaceFromStore(useSessionStore.getState());
     expect(persisted.paneResumeSessionIds?.[paneId]).toBe(fallback.id);
 
     const restored = hydrateWorkspace(persisted);

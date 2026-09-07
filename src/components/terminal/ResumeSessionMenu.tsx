@@ -21,6 +21,26 @@ interface ResumeSessionMenuProps {
 interface MenuPosition {
   right: number;
   top: number;
+  /** Room left below the trigger, so a long list scrolls instead of running
+   * off the bottom of the window. */
+  maxHeight: number;
+}
+
+const MENU_VIEWPORT_MARGIN_PX = 12;
+const MENU_MAX_HEIGHT_PX = 600;
+const MENU_MIN_HEIGHT_PX = 160;
+
+export function resolveMenuPosition(
+  rect: { right: number; bottom: number },
+  viewport: { width: number; height: number },
+): MenuPosition {
+  const top = rect.bottom + 4;
+  const room = viewport.height - top - MENU_VIEWPORT_MARGIN_PX;
+  return {
+    right: Math.max(MENU_VIEWPORT_MARGIN_PX, viewport.width - rect.right),
+    top,
+    maxHeight: Math.max(MENU_MIN_HEIGHT_PX, Math.min(MENU_MAX_HEIGHT_PX, room)),
+  };
 }
 
 /** Exact stamp, for the tooltip and for rows a relative label can't tell
@@ -78,6 +98,7 @@ export function ResumeSessionMenu({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const menuRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const requestIdRef = useRef(0);
 
@@ -91,7 +112,13 @@ export function ResumeSessionMenu({
       return;
     }
     const onPointerDown = (event: PointerEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      // The trigger is left to its own click handler, which toggles the menu
+      // shut — closing here as well would reopen it on the same click.
+      if (triggerRef.current?.contains(target)) {
+        return;
+      }
+      if (menuRef.current && !menuRef.current.contains(target)) {
         close();
       }
     };
@@ -121,8 +148,17 @@ export function ResumeSessionMenu({
 
   const open = (event: MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
+    if (position) {
+      close();
+      return;
+    }
     const rect = event.currentTarget.getBoundingClientRect();
-    setPosition({ right: window.innerWidth - rect.right, top: rect.bottom + 4 });
+    setPosition(
+      resolveMenuPosition(rect, {
+        width: window.innerWidth,
+        height: window.innerHeight,
+      }),
+    );
     setEntries(null);
 
     const requestId = ++requestIdRef.current;
@@ -152,10 +188,12 @@ export function ResumeSessionMenu({
   return (
     <>
       <button
+        ref={triggerRef}
         type="button"
         className="terminal-pane-header__action"
-        title="Retomar uma sessão anterior"
-        aria-label="Retomar uma sessão anterior"
+        title="Histórico de conversas desta pasta"
+        aria-label="Histórico de conversas desta pasta"
+        aria-expanded={position !== null}
         onClick={open}
       >
         <IconChevronDown size={13} />
@@ -164,7 +202,11 @@ export function ResumeSessionMenu({
         <div
           ref={menuRef}
           className="resume-session-menu"
-          style={{ right: position.right, top: position.top }}
+          style={{
+            right: position.right,
+            top: position.top,
+            maxHeight: position.maxHeight,
+          }}
           role="menu"
         >
           {entries === null && (
@@ -227,7 +269,10 @@ export function ResumeSessionMenu({
                   role="menuitem"
                   title={[
                     name,
-                    formatExactLabel(entry.updatedAt),
+                    `Iniciada em ${formatExactLabel(entry.createdAt)}`,
+                    entry.updatedAt !== entry.createdAt
+                      ? `Última atividade ${formatExactLabel(entry.updatedAt)}`
+                      : "",
                     isCurrent ? "Conversa atual deste terminal" : "",
                   ]
                     .filter(Boolean)
@@ -241,9 +286,12 @@ export function ResumeSessionMenu({
                     {name}
                   </span>
                   <span className="resume-session-menu__item-time">
+                    {/* The row shows the same stamp the list is sorted by,
+                        otherwise a resumed conversation reads "agora" while
+                        sitting halfway down the list. */}
                     {ambiguous
-                      ? formatExactLabel(entry.updatedAt)
-                      : formatRelativeLabel(entry.updatedAt)}
+                      ? formatExactLabel(entry.createdAt)
+                      : formatRelativeLabel(entry.createdAt)}
                   </span>
                 </button>
                 <button

@@ -70,6 +70,20 @@ export const SessionWorkspace = memo(function SessionWorkspace({
     };
   }, [paneIds, shouldSpawn]);
 
+  // Dragging a divider resizes the panes but not the canvas the observer
+  // above watches, so nothing refit them: the terminal kept its old
+  // cols/rows, drew past the pane edge and, on ConPTY, left stale cells
+  // behind on every redraw. Every layout change (ratio, split, close) refits
+  // once it settles — the timer resets on each pointer move, so the PTY sees
+  // one resize per drag, not one per pixel.
+  useEffect(() => {
+    if (!shouldSpawn) {
+      return;
+    }
+    const timer = window.setTimeout(() => fitPanes(paneIds), 120);
+    return () => window.clearTimeout(timer);
+  }, [session.layout, paneIds, shouldSpawn]);
+
   const focusPane = (paneId: string) => {
     setActiveSessionId(session.id);
     setActivePaneId(paneId);

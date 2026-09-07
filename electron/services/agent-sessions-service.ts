@@ -7,7 +7,7 @@ import { join } from "node:path";
 import type { ResumableSessionEntry } from "../types/api";
 import { TITLE_MAX_LENGTH, summarizeTitle } from "./session-title";
 
-const MAX_ENTRIES = 20;
+const MAX_ENTRIES = 40;
 const CLAUDE_TITLE_SCAN_LINES = 50;
 const CODEX_MAX_CANDIDATE_FILES = 300;
 // The user's first prompt only comes after the CLI's own header records
@@ -67,11 +67,12 @@ function samePath(left: string, right: string): boolean {
 }
 
 // Scaffolding injected around the user's actual text in Claude/Cursor
-// transcripts. Caveats/slash-command echoes/timestamps carry no title-worthy
-// content, so the whole block (tag + content) is dropped; user_query only
-// wraps the real question, so just its tag markers are stripped.
+// transcripts. Caveats/slash-command echoes/timestamps/attachment manifests
+// carry no title-worthy content, so the whole block (tag + content) is
+// dropped; user_query only wraps the real question, so just its tag markers
+// are stripped.
 const STRIP_BLOCK_TAG =
-  /<(local-command-caveat|command-name|command-message|command-args|timestamp)>[\s\S]*?<\/\1>/gi;
+  /<(local-command-caveat|command-name|command-message|command-args|timestamp|image_files|attached_files)>[\s\S]*?<\/\1>/gi;
 // A command's output can be longer than the window the head scan reads, so
 // its closing tag may never show up — dropping to the end of what was read is
 // what keeps a "Set model to Sonnet" echo from becoming a conversation's name.
@@ -113,6 +114,7 @@ interface DraftEntry {
   id: string;
   title: string;
   updatedAt: string;
+  createdAt: string;
   /** Cleaned opening message, longer than the title. */
   titleSource?: string;
   /** Id of the transcript's opening record. A `--resume` can copy the whole
@@ -126,6 +128,7 @@ function toResumableEntry(entry: DraftEntry): ResumableSessionEntry {
     id: entry.id,
     title: entry.title,
     updatedAt: entry.updatedAt,
+    createdAt: entry.createdAt,
     fromTranscript: Boolean(entry.titleSource),
   };
 }
@@ -142,6 +145,35 @@ function collapseForkCopies(entries: DraftEntry[]): DraftEntry[] {
     seen.add(entry.rootUuid);
     return true;
   });
+}
+
+/**
+ * The list is ordered by when each conversation was *started*, not by when
+ * its transcript was last touched. Resuming a conversation rewrites its file
+ * (and a `--resume` fork even creates a new one), so an mtime order shuffled
+ * the rows every time the user opened one — the row they had just clicked
+ * jumped to the top, and everything else moved down. A conversation's start
+ * never changes, so the list stays put no matter what gets opened.
+ */
+function sortByCreation(entries: DraftEntry[]): DraftEntry[] {
+  return [...entries].sort(
+    (a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt),
+  );
+}
+
+/** When the conversation started: the transcript's own first timestamp when
+ * it records one (a fork copies the original records, timestamps included, so
+ * the copy keeps the original's place in the list), else the file's birth
+ * time, else its mtime. */
+function resolveCreatedAt(
+  recordedIso: string | undefined,
+  info: { birthtimeMs: number; mtimeMs: number },
+): string {
+  const recordedMs = recordedIso ? Date.parse(recordedIso) : NaN;
+  if (!Number.isNaN(recordedMs)) return new Date(recordedMs).toISOString();
+  const birth = info.birthtimeMs;
+  const ms = birth > 0 && birth <= info.mtimeMs ? birth : info.mtimeMs;
+  return new Date(ms).toISOString();
 }
 
 function commonPrefixLength(a: string, b: string): number {
@@ -362,6 +394,8 @@ interface ClaudeHead {
   /** Opening message, cleaned and capped at TITLE_SOURCE_MAX_LENGTH. */
   titleSource?: string;
   rootUuid?: string;
+  /** Earliest `timestamp` the head records — when the conversation began. */
+  startedAt?: string;
 }
 
 /** One pass over the head of a transcript for both things the list needs from
@@ -380,10 +414,18 @@ async function readClaudeHead(filePath: string): Promise<ClaudeHead> {
       type?: string;
       uuid?: unknown;
       isMeta?: boolean;
+      timestamp?: unknown;
       message?: { content?: unknown };
     };
     if (!head.rootUuid && typeof record.uuid === "string" && record.uuid) {
       head.rootUuid = record.uuid;
+    }
+    if (
+      !head.startedAt
+      && typeof record.timestamp === "string"
+      && !Number.isNaN(Date.parse(record.timestamp))
+    ) {
+      head.startedAt = record.timestamp;
     }
     if (head.titleSource) continue;
     if (record.type !== "user" || record.isMeta === true) continue;
@@ -429,7 +471,12 @@ async function listClaudeSessions(
           const path = join(dir, entry.name);
           const info = await stat(path).catch(() => null);
           if (!info) return null;
-          return { id: entry.name.slice(0, -".jsonl".length), path, mtime: info.mtimeMs };
+          return {
+            id: entry.name.slice(0, -".jsonl".length),
+            path,
+            mtime: info.mtimeMs,
+            birthtime: info.birthtimeMs,
+          };
         }),
     )
   )
@@ -448,13 +495,19 @@ async function listClaudeSessions(
           ? summarizeTitle(head.titleSource)
           : formatFallbackTitle(candidate.mtime),
         updatedAt: new Date(candidate.mtime).toISOString(),
+        createdAt: resolveCreatedAt(head.startedAt, {
+          birthtimeMs: candidate.birthtime,
+          mtimeMs: candidate.mtime,
+        }),
         titleSource: head.titleSource,
         rootUuid: head.rootUuid,
       };
     }),
   );
 
-  return collapseForkCopies(drafts).slice(0, MAX_ENTRIES);
+  // Collapse relies on the newest-by-mtime order the candidates arrived in;
+  // the user-facing order is decided afterwards.
+  return sortByCreation(collapseForkCopies(drafts)).slice(0, MAX_ENTRIES);
 }
 
 // --- Codex: ~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl + session_index.jsonl ---
@@ -494,9 +547,9 @@ async function readCodexIndex(
 async function collectCodexRolloutFiles(
   codexRoot: string,
   limit: number,
-): Promise<Array<{ path: string; mtime: number }>> {
+): Promise<Array<{ path: string; mtime: number; birthtime: number }>> {
   const root = join(codexRoot, "sessions");
-  const results: Array<{ path: string; mtime: number }> = [];
+  const results: Array<{ path: string; mtime: number; birthtime: number }> = [];
 
   const listDescending = async (dir: string): Promise<string[]> => {
     const entries = await readdir(dir, { withFileTypes: true }).catch(() => []);
@@ -515,7 +568,7 @@ async function collectCodexRolloutFiles(
           if (!file.isFile() || !file.name.endsWith(".jsonl")) continue;
           const path = join(dayDir, file.name);
           const info = await stat(path).catch(() => null);
-          if (info) results.push({ path, mtime: info.mtimeMs });
+          if (info) results.push({ path, mtime: info.mtimeMs, birthtime: info.birthtimeMs });
         }
         if (results.length >= limit) return results;
       }
@@ -526,7 +579,18 @@ async function collectCodexRolloutFiles(
   return results;
 }
 
-async function readCodexSessionMeta(filePath: string): Promise<{ id: string; cwd: string } | null> {
+interface CodexSessionMeta {
+  id: string;
+  cwd: string;
+  /** `timestamp` of the session_meta record, when it carries one. */
+  startedAt?: string;
+}
+
+/** Null for a file that is not a top-level conversation: a rollout the CLI
+ * opened for one of its own subagents shares the parent's cwd and would
+ * otherwise show up in the list as a conversation the user never started
+ * (and `codex resume` on it lands inside the subagent's thread). */
+async function readCodexSessionMeta(filePath: string): Promise<CodexSessionMeta | null> {
   const [firstLine] = await readFirstLines(filePath, 1);
   if (!firstLine) return null;
   let parsed: unknown;
@@ -535,11 +599,34 @@ async function readCodexSessionMeta(filePath: string): Promise<{ id: string; cwd
   } catch {
     return null;
   }
-  const record = parsed as { type?: string; payload?: { id?: unknown; session_id?: unknown; cwd?: unknown } };
+  const record = parsed as {
+    type?: string;
+    timestamp?: unknown;
+    payload?: {
+      id?: unknown;
+      session_id?: unknown;
+      cwd?: unknown;
+      timestamp?: unknown;
+      source?: unknown;
+    };
+  };
   if (record.type !== "session_meta" || !record.payload) return null;
-  const id = record.payload.id ?? record.payload.session_id;
-  if (typeof id !== "string" || typeof record.payload.cwd !== "string") return null;
-  return { id, cwd: record.payload.cwd };
+  const { payload } = record;
+  if (isCodexSubagentSource(payload.source)) return null;
+  const id = payload.id ?? payload.session_id;
+  if (typeof id !== "string" || typeof payload.cwd !== "string") return null;
+  const stamp = [payload.timestamp, record.timestamp].find(
+    (value) => typeof value === "string",
+  ) as string | undefined;
+  return { id, cwd: payload.cwd, startedAt: stamp };
+}
+
+function isCodexSubagentSource(source: unknown): boolean {
+  return (
+    typeof source === "object"
+    && source !== null
+    && "subagent" in (source as Record<string, unknown>)
+  );
 }
 
 /** Prompts the CLI injects before the user gets to type: naming a session
@@ -584,6 +671,7 @@ async function listCodexSessions(
     path: string;
     threadName?: string;
     effectiveMs: number;
+    createdAt: string;
   }> = [];
   for (const file of files) {
     const meta = await readCodexSessionMeta(file.path).catch(() => null);
@@ -599,13 +687,17 @@ async function listCodexSessions(
       path: file.path,
       threadName: indexed?.threadName?.trim() || undefined,
       effectiveMs,
+      createdAt: resolveCreatedAt(meta.startedAt, {
+        birthtimeMs: file.birthtime,
+        mtimeMs: file.mtime,
+      }),
     });
   }
 
   // Only the rows that make the list are worth a second pass over their file.
   return Promise.all(
     matches
-      .sort((a, b) => b.effectiveMs - a.effectiveMs)
+      .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
       .slice(0, MAX_ENTRIES)
       .map(async (match) => {
         // A `/name` from the index already is the title; otherwise scan for
@@ -620,6 +712,7 @@ async function listCodexSessions(
               ? summarizeTitle(titleSource)
               : formatFallbackTitle(match.effectiveMs)),
           updatedAt: new Date(match.effectiveMs).toISOString(),
+          createdAt: match.createdAt,
           titleSource,
         };
       }),
@@ -683,12 +776,19 @@ async function listCursorSessions(
           const path = join(dir, entry.name, `${entry.name}.jsonl`);
           const info = await stat(path).catch(() => null);
           if (!info) return null;
-          return { id: entry.name, path, mtime: info.mtimeMs };
+          return {
+            id: entry.name,
+            path,
+            mtime: info.mtimeMs,
+            // Cursor records no machine-readable start time, so the file's
+            // birth time is the best fixed point the list has.
+            createdAt: resolveCreatedAt(undefined, info),
+          };
         }),
     )
   )
     .filter((item): item is NonNullable<typeof item> => item !== null)
-    .sort((a, b) => b.mtime - a.mtime)
+    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
     .slice(0, MAX_ENTRIES);
 
   return Promise.all(
@@ -702,6 +802,7 @@ async function listCursorSessions(
           ? summarizeTitle(titleSource)
           : formatFallbackTitle(candidate.mtime),
         updatedAt: new Date(candidate.mtime).toISOString(),
+        createdAt: candidate.createdAt,
         titleSource: titleSource ?? undefined,
       };
     }),

@@ -69,6 +69,13 @@ export const PALETTE_ACTIONS: ToolbarCommand[] = [
     description: "Salva logs de boot e estado da UI em ~/.local/share/head-terminal/logs/",
   },
   {
+    id: "ghost-diagnostic",
+    label: "Diagnosticar caracteres fantasma",
+    command: "__ghost_diagnostic__",
+    description:
+      "Lê as colunas iniciais do buffer do terminal ativo, força o redesenho do renderer e copia o relatório",
+  },
+  {
     id: "rename-session",
     label: "Renomear sessão",
     command: "__rename_session__",
