@@ -33,6 +33,8 @@ import {
   IconClose,
   IconPencil,
   IconFolder,
+  IconMaximize,
+  IconMinimize,
   IconRefresh,
   IconSplitHorizontal,
   IconSplitVertical,
@@ -337,6 +339,7 @@ interface TerminalPaneHeaderProps {
   paneIndex: number;
   paneCount: number;
   isActive: boolean;
+  isMaximized: boolean;
   onFocus: () => void;
   onClose: () => void;
 }
@@ -349,6 +352,7 @@ export function TerminalPaneHeader({
   paneIndex,
   paneCount,
   isActive,
+  isMaximized,
   onFocus,
   onClose,
 }: TerminalPaneHeaderProps) {
@@ -357,6 +361,9 @@ export function TerminalPaneHeader({
   );
   const restartPane = useSessionStore((state) => state.restartPane);
   const splitPane = useSessionStore((state) => state.splitPane);
+  const toggleMaximizedPane = useSessionStore(
+    (state) => state.toggleMaximizedPane,
+  );
   const gitContext = useSessionStore((state) => state.paneGitContext[paneId]);
   const contextPercent = useSessionStore(
     (state) => state.paneRuntime[paneId]?.contextPercent,
@@ -443,6 +450,34 @@ export function TerminalPaneHeader({
           </button>
         )}
         <VoiceInputButton paneId={paneId} />
+        {(paneCount > 1 || isMaximized) && (
+          <button
+            type="button"
+            className={
+              isMaximized
+                ? "terminal-pane-header__action terminal-pane-header__action--on"
+                : "terminal-pane-header__action"
+            }
+            title={
+              isMaximized
+                ? "Restaurar os outros terminais (Ctrl+Shift+Z)"
+                : "Expandir: só este terminal na área da sessão (Ctrl+Shift+Z)"
+            }
+            aria-label={
+              isMaximized
+                ? "Restaurar layout da sessão"
+                : `Expandir ${shortLabel}`
+            }
+            aria-pressed={isMaximized}
+            onClick={(event) => {
+              event.stopPropagation();
+              onFocus();
+              toggleMaximizedPane(paneId);
+            }}
+          >
+            {isMaximized ? <IconMinimize size={13} /> : <IconMaximize size={13} />}
+          </button>
+        )}
         <button
           type="button"
           className="terminal-pane-header__action"

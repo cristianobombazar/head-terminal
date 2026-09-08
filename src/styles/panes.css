@@ -496,6 +496,16 @@
   border-color: var(--border-default);
 }
 
+/* Zoom on: the toggle stays lit without hover so it is obvious that the
+   session has more terminals than the one on screen. */
+.terminal-pane-header__action--on,
+.terminal-pane-header:hover .terminal-pane-header__action--on {
+  opacity: 1;
+  color: var(--accent);
+  border-color: var(--accent-muted);
+  background: var(--accent-subtle);
+}
+
 .terminal-pane-header__close:hover {
   color: var(--status-error);
   background: var(--status-error-subtle);
@@ -670,6 +680,22 @@
 .terminal-pane-shell.terminal-pane--positioned {
   position: absolute;
   box-sizing: border-box;
+}
+
+/* One pane expanded over the session's terminal area. Its siblings are
+   parked off-screen with the exact box they had (same trick as
+   .session-workspace--hidden): xterm pauses the renderer for a pane outside
+   the viewport, but the pty keeps its cols/rows, so zooming in and out
+   costs no resize and no SIGWINCH — the agents behind it never notice. */
+.terminal-pane-shell--maximized {
+  z-index: 2;
+}
+
+.terminal-pane-shell--parked {
+  transform: translateX(-200vw);
+  visibility: hidden;
+  pointer-events: none;
+  z-index: 0;
 }
 
 .terminal-pane:focus {

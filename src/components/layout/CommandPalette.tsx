@@ -66,6 +66,9 @@ export function CommandPalette({
   const splitActivePane = useSessionStore((state) => state.splitActivePane);
   const activePaneId = useSessionStore((state) => state.activePaneId);
   const closePane = useSessionStore((state) => state.closePane);
+  const toggleMaximizedActivePane = useSessionStore(
+    (state) => state.toggleMaximizedActivePane,
+  );
   const available = useMemo(
     () =>
       isVoiceInputSupported()
@@ -113,6 +116,8 @@ export function CommandPalette({
         splitActivePane("vertical");
       } else if (command === "__split_horizontal__") {
         splitActivePane("horizontal");
+      } else if (command === "__toggle_maximize_pane__") {
+        toggleMaximizedActivePane();
       } else if (command === "__close_pane__") {
         if (activePaneId) {
           closePane(activePaneId);
@@ -141,7 +146,15 @@ export function CommandPalette({
 
       closePalette();
     },
-    [activePaneId, closePalette, closePane, onRenameRequest, onSettingsRequest, splitActivePane],
+    [
+      activePaneId,
+      closePalette,
+      closePane,
+      onRenameRequest,
+      onSettingsRequest,
+      splitActivePane,
+      toggleMaximizedActivePane,
+    ],
   );
 
   useEffect(() => {

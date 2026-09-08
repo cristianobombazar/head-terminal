@@ -94,6 +94,11 @@ interface SessionStore {
   pendingConversationLabels: Record<string, string>;
   sessionGitContext: Record<string, GitContext>;
   paneGitContext: Record<string, GitContext>;
+  /** sessionId -> pane shown alone in the canvas ("zoom"). View state only:
+   * the other panes stay mounted and live, parked off-screen at the size
+   * they already had, so nothing restarts and no pty is resized. Not
+   * persisted — a restart comes back with every terminal visible. */
+  maximizedPaneIds: Record<string, string>;
   addSession: (session: AgentSession) => void;
   hydrateWorkspace: (
     sessions: AgentSession[],
@@ -120,6 +125,10 @@ interface SessionStore {
    * whichever one happens to hold focus. */
   splitPane: (paneId: string, direction: SplitDirection) => void;
   closePane: (paneId: string) => void;
+  /** Shows this pane alone in the space the session's terminals already
+   * occupy, or brings the others back when it is the one maximized. */
+  toggleMaximizedPane: (paneId: string) => void;
+  toggleMaximizedActivePane: () => void;
   updateSplitRatio: (
     sessionId: string,
     path: number[],
@@ -311,6 +320,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   pendingConversationLabels: {},
   sessionGitContext: {},
   paneGitContext: {},
+  maximizedPaneIds: {},
 
   addSession: (session) =>
     set((state) => {
@@ -549,12 +559,16 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       const sessionGitContext = { ...state.sessionGitContext };
       delete sessionGitContext[sessionId];
 
+      const maximizedPaneIds = { ...state.maximizedPaneIds };
+      delete maximizedPaneIds[sessionId];
+
       const next = {
         sessions: remaining,
         activeSessionId,
         activePaneId,
         spawnedSessionIds,
         sessionGitContext,
+        maximizedPaneIds,
         ...cleanup,
       };
       persistWorkspaceState({ ...state, ...next }, { immediate: true });
@@ -829,7 +843,11 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         ...state.paneRuntime,
         [newPaneId]: createPaneRuntime(),
       };
-      const next = { sessions: nextSessions, paneRuntime };
+      // Splitting asks for one more terminal on screen, so a zoom that would
+      // hide the pane that just appeared is dropped instead.
+      const maximizedPaneIds = { ...state.maximizedPaneIds };
+      delete maximizedPaneIds[session.id];
+      const next = { sessions: nextSessions, paneRuntime, maximizedPaneIds };
       persistWorkspaceState({ ...state, ...next }, { immediate: true });
       return next;
     }),
@@ -860,10 +878,57 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           ? collectPaneIds(layout)[0] ?? null
           : state.activePaneId;
 
-      const next = { sessions: nextSessions, activePaneId, ...cleanup };
+      // Closing the maximized pane — or the last of its siblings, which
+      // leaves nothing to hide — drops the zoom instead of stranding it.
+      const maximizedPaneIds = { ...state.maximizedPaneIds };
+      if (
+        maximizedPaneIds[session.id] === paneId ||
+        collectPaneIds(layout).length <= 1
+      ) {
+        delete maximizedPaneIds[session.id];
+      }
+
+      const next = {
+        sessions: nextSessions,
+        activePaneId,
+        maximizedPaneIds,
+        ...cleanup,
+      };
       persistWorkspaceState({ ...state, ...next }, { immediate: true });
       return next;
     }),
+
+  toggleMaximizedPane: (paneId) =>
+    set((state) => {
+      const session = state.sessions.find((item) =>
+        sessionHasPane(item, paneId),
+      );
+      if (!session) {
+        return state;
+      }
+
+      const maximizedPaneIds = { ...state.maximizedPaneIds };
+
+      if (maximizedPaneIds[session.id] === paneId) {
+        delete maximizedPaneIds[session.id];
+        return { maximizedPaneIds };
+      }
+
+      // A single terminal already fills the canvas: nothing to maximize.
+      if (collectPaneIds(session.layout).length <= 1) {
+        return state;
+      }
+
+      maximizedPaneIds[session.id] = paneId;
+      return { maximizedPaneIds };
+    }),
+
+  toggleMaximizedActivePane: () => {
+    const { activePaneId } = get();
+    if (activePaneId) {
+      get().toggleMaximizedPane(activePaneId);
+    }
+  },
 
   restartSessionPanes: (sessionId) => {
     const session = get().sessions.find((item) => item.id === sessionId);

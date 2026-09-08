@@ -544,3 +544,85 @@ describe("useSessionStore pane folders", () => {
     expect(findPaneNode(session.layout, second)?.cwd).toBeUndefined();
   });
 });
+
+describe("useSessionStore maximized pane", () => {
+  beforeEach(() => {
+    const storage = new Map<string, string>();
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => storage.set(key, value),
+      removeItem: (key: string) => storage.delete(key),
+    });
+    useSessionStore.setState(useSessionStore.getInitialState(), true);
+  });
+
+  function withSplitSession(sessionId = "s") {
+    const created = session(sessionId);
+    useSessionStore.getState().addSession(created);
+    const [first] = collectPaneIds(created.layout);
+    useSessionStore.getState().setActivePaneId(first);
+    useSessionStore.getState().splitActivePane("vertical");
+    const stored = useSessionStore
+      .getState()
+      .sessions.find((item) => item.id === sessionId)!;
+    const [, second] = collectPaneIds(stored.layout);
+    return { sessionId, first, second };
+  }
+
+  it("toggles the zoom on the pane's own session", () => {
+    const { sessionId, first, second } = withSplitSession();
+
+    useSessionStore.getState().toggleMaximizedPane(second);
+    expect(useSessionStore.getState().maximizedPaneIds[sessionId]).toBe(second);
+
+    // Maximizing another pane moves the zoom instead of stacking one.
+    useSessionStore.getState().toggleMaximizedPane(first);
+    expect(useSessionStore.getState().maximizedPaneIds[sessionId]).toBe(first);
+
+    useSessionStore.getState().toggleMaximizedPane(first);
+    expect(useSessionStore.getState().maximizedPaneIds[sessionId]).toBeUndefined();
+  });
+
+  it("ignores a session with a single terminal", () => {
+    const created = session("solo");
+    useSessionStore.getState().addSession(created);
+    const [only] = collectPaneIds(created.layout);
+
+    useSessionStore.getState().toggleMaximizedPane(only);
+
+    expect(useSessionStore.getState().maximizedPaneIds.solo).toBeUndefined();
+  });
+
+  it("drops the zoom when the maximized pane or its last sibling closes", () => {
+    const { sessionId, second } = withSplitSession();
+
+    useSessionStore.getState().toggleMaximizedPane(second);
+    useSessionStore.getState().closePane(second);
+    expect(useSessionStore.getState().maximizedPaneIds[sessionId]).toBeUndefined();
+
+    // Closing the sibling leaves a lone terminal: the zoom would hide nothing.
+    const split = withSplitSession("t");
+    useSessionStore.getState().toggleMaximizedPane(split.second);
+    useSessionStore.getState().closePane(split.first);
+    expect(useSessionStore.getState().maximizedPaneIds.t).toBeUndefined();
+  });
+
+  it("drops the zoom when a new pane is split off", () => {
+    const { sessionId, second } = withSplitSession();
+
+    useSessionStore.getState().toggleMaximizedPane(second);
+    useSessionStore.getState().setActivePaneId(second);
+    useSessionStore.getState().splitActivePane("horizontal");
+
+    expect(useSessionStore.getState().maximizedPaneIds[sessionId]).toBeUndefined();
+  });
+
+  it("forgets the zoom of a removed session", () => {
+    const { sessionId, second } = withSplitSession();
+
+    useSessionStore.getState().toggleMaximizedPane(second);
+    useSessionStore.getState().removeSession(sessionId);
+
+    expect(useSessionStore.getState().maximizedPaneIds[sessionId]).toBeUndefined();
+  });
+});

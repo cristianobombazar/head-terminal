@@ -21,6 +21,9 @@ interface TerminalPaneProps {
   isVisible: boolean;
   shouldSpawn: boolean;
   isActive: boolean;
+  /** Another pane is maximized: this one stays live but off-screen. */
+  isParked: boolean;
+  isMaximized: boolean;
   paneIndex: number;
   paneCount: number;
   layoutStyle?: CSSProperties;
@@ -42,6 +45,8 @@ export function TerminalPane({
   isVisible,
   shouldSpawn,
   isActive,
+  isParked,
+  isMaximized,
   paneIndex,
   paneCount,
   layoutStyle,
@@ -68,15 +73,18 @@ export function TerminalPane({
     containerRef,
   });
 
+  const shellClasses = [
+    "terminal-pane-shell",
+    "terminal-pane--positioned",
+    isActive ? "terminal-pane-shell--active" : null,
+    isMaximized ? "terminal-pane-shell--maximized" : null,
+    isParked ? "terminal-pane-shell--parked" : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   return (
-    <div
-      className={
-        isActive
-          ? "terminal-pane-shell terminal-pane-shell--active terminal-pane--positioned"
-          : "terminal-pane-shell terminal-pane--positioned"
-      }
-      style={layoutStyle}
-    >
+    <div className={shellClasses} style={layoutStyle} aria-hidden={isParked}>
       {showHeader && (
         <TerminalPaneHeader
           paneId={paneId}
@@ -86,6 +94,7 @@ export function TerminalPane({
           paneIndex={paneIndex}
           paneCount={paneCount}
           isActive={isActive}
+          isMaximized={isMaximized}
           onFocus={onFocus}
           onClose={onClose}
         />

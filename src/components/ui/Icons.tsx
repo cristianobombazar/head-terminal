@@ -10,7 +10,9 @@ import {
   Folder,
   GitBranch,
   LockKeyhole,
+  Maximize2,
   Mic,
+  Minimize2,
   PanelLeftClose,
   PanelLeftOpen,
   Pencil,
@@ -41,6 +43,14 @@ export function IconClose({ className, size = 14 }: IconProps) {
 
 export function IconMic({ className, size = 14 }: IconProps) {
   return <Mic className={className} size={size} aria-hidden />;
+}
+
+export function IconMaximize({ className, size = 14 }: IconProps) {
+  return <Maximize2 className={className} size={size} aria-hidden />;
+}
+
+export function IconMinimize({ className, size = 14 }: IconProps) {
+  return <Minimize2 className={className} size={size} aria-hidden />;
 }
 
 export function IconCommand({ className, size = 14 }: IconProps) {

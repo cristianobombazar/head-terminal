@@ -74,6 +74,9 @@ export function useKeyboardShortcuts(options: {
   const splitActivePane = useSessionStore((state) => state.splitActivePane);
   const activePaneId = useSessionStore((state) => state.activePaneId);
   const closePane = useSessionStore((state) => state.closePane);
+  const toggleMaximizedActivePane = useSessionStore(
+    (state) => state.toggleMaximizedActivePane,
+  );
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -168,6 +171,17 @@ export function useKeyboardShortcuts(options: {
         !isInput &&
         event.ctrlKey &&
         event.shiftKey &&
+        event.key.toLowerCase() === "z"
+      ) {
+        event.preventDefault();
+        toggleMaximizedActivePane();
+        return;
+      }
+
+      if (
+        !isInput &&
+        event.ctrlKey &&
+        event.shiftKey &&
         event.key.toLowerCase() === "w"
       ) {
         event.preventDefault();
@@ -214,6 +228,7 @@ export function useKeyboardShortcuts(options: {
     sessions,
     setActiveSessionId,
     splitActivePane,
+    toggleMaximizedActivePane,
   ]);
 }
 

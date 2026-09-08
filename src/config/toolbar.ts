@@ -56,6 +56,14 @@ export const PALETTE_ACTIONS: ToolbarCommand[] = [
     description: "Divide o terminal ativo horizontalmente",
   },
   {
+    id: "toggle-maximize-pane",
+    label: "Expandir terminal",
+    command: "__toggle_maximize_pane__",
+    shortcut: "Ctrl+Shift+Z",
+    description:
+      "Mostra só o terminal ativo na área da sessão, ou traz os outros de volta",
+  },
+  {
     id: "close-pane",
     label: "Fechar terminal",
     command: "__close_pane__",

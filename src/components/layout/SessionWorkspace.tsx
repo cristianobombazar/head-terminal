@@ -32,6 +32,9 @@ export const SessionWorkspace = memo(function SessionWorkspace({
   const setActivePaneId = useSessionStore((state) => state.setActivePaneId);
   const setActiveSessionId = useSessionStore((state) => state.setActiveSessionId);
   const closePane = useSessionStore((state) => state.closePane);
+  const maximizedPaneId = useSessionStore(
+    (state) => state.maximizedPaneIds[session.id] ?? null,
+  );
 
   const canvasRef = useRef<HTMLDivElement>(null);
 
@@ -51,6 +54,10 @@ export const SessionWorkspace = memo(function SessionWorkspace({
     () => collectPaneIds(session.layout),
     [session.layout],
   );
+  const zoomedPaneId =
+    maximizedPaneId && paneIds.includes(maximizedPaneId) && paneIds.length > 1
+      ? maximizedPaneId
+      : null;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -82,7 +89,7 @@ export const SessionWorkspace = memo(function SessionWorkspace({
     }
     const timer = window.setTimeout(() => fitPanes(paneIds), 120);
     return () => window.clearTimeout(timer);
-  }, [session.layout, paneIds, shouldSpawn]);
+  }, [session.layout, paneIds, shouldSpawn, zoomedPaneId]);
 
   const focusPane = (paneId: string) => {
     setActiveSessionId(session.id);
@@ -104,7 +111,13 @@ export const SessionWorkspace = memo(function SessionWorkspace({
     >
       <div ref={canvasRef} className="session-workspace__canvas">
         {paneIds.map((paneId, index) => {
-          const rect = paneRectById.get(paneId);
+          const isParked = zoomedPaneId !== null && paneId !== zoomedPaneId;
+          // The zoomed pane spans the canvas; its siblings keep the rect
+          // (and therefore the pty size) they had while parked off-screen.
+          const rect =
+            paneId === zoomedPaneId
+              ? { paneId, top: 0, left: 0, width: 100, height: 100 }
+              : paneRectById.get(paneId);
           const isActive =
             session.id === activeSessionId && paneId === activePaneId;
 
@@ -119,9 +132,11 @@ export const SessionWorkspace = memo(function SessionWorkspace({
               ollamaModel={session.ollamaModel}
               ollamaThinkOff={session.ollamaThinkOff}
               ggufPath={session.ggufPath}
-              isVisible={isVisible}
+              isVisible={isVisible && !isParked}
               shouldSpawn={shouldSpawn}
               isActive={isActive}
+              isParked={isParked}
+              isMaximized={paneId === zoomedPaneId}
               paneIndex={index}
               paneCount={paneIds.length}
               layoutStyle={
@@ -144,7 +159,9 @@ export const SessionWorkspace = memo(function SessionWorkspace({
           );
         })}
 
-        <LayoutDividers sessionId={session.id} dividers={dividers} />
+        {zoomedPaneId === null && (
+          <LayoutDividers sessionId={session.id} dividers={dividers} />
+        )}
       </div>
       <TerminalStatusBar sessionId={session.id} />
     </section>
