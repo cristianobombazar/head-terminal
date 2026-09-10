@@ -9,8 +9,10 @@ import {
   Cpu,
   Folder,
   GitBranch,
+  HardDrive,
   LockKeyhole,
   Maximize2,
+  MemoryStick,
   Mic,
   Minimize2,
   PanelLeftClose,
@@ -119,6 +121,18 @@ export function IconSidebarCollapse({ className, size = 14 }: IconProps) {
 
 export function IconSidebarExpand({ className, size = 14 }: IconProps) {
   return <PanelLeftOpen className={className} size={size} aria-hidden />;
+}
+
+export function IconCpu({ className, size = 14 }: IconProps) {
+  return <Cpu className={className} size={size} aria-hidden />;
+}
+
+export function IconMemory({ className, size = 14 }: IconProps) {
+  return <MemoryStick className={className} size={size} aria-hidden />;
+}
+
+export function IconDisk({ className, size = 14 }: IconProps) {
+  return <HardDrive className={className} size={size} aria-hidden />;
 }
 
 // Logos oficiais (Cursor: simple-icons/CC0, OpenAI: lobehub/lobe-icons/MIT,

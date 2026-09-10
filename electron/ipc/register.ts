@@ -26,6 +26,7 @@ import type {
   PtyExitEvent,
   PtyHandle,
   ResizePtyInput,
+  ResourceUsage,
   ResumableAgent,
   ResumableSessionEntry,
   SecretBackendStatus,
@@ -70,6 +71,7 @@ export interface IpcServices {
     listOllamaModels?(): Promise<string[]>;
     deleteClaudeProfile(path: string): Promise<void>;
     getPlatform(): Promise<PlatformInfo> | PlatformInfo;
+    getResourceUsage?(): Promise<ResourceUsage>;
   };
   secrets?: {
     has(key: AllowedSecretKey): Promise<boolean>;
@@ -277,6 +279,10 @@ export function registerIpc({
   );
   handle(IPC_CHANNELS.system.getPlatform, () =>
     services.system?.getPlatform() ?? unsupported("system.getPlatform"),
+  );
+  handle(IPC_CHANNELS.system.getResourceUsage, () =>
+    services.system?.getResourceUsage?.() ??
+      unsupported("system.getResourceUsage"),
   );
 
   handle(IPC_CHANNELS.secrets.has, (_event, value) =>

@@ -104,6 +104,25 @@ export interface PlatformInfo {
   windowsBuild?: number;
 }
 
+export interface UsageSample {
+  usedBytes: number;
+  totalBytes: number;
+  percent: number;
+}
+
+export interface DiskUsage extends UsageSample {
+  /** The volume sampled — `C:` on Windows, the mount path elsewhere. */
+  label: string;
+}
+
+export interface ResourceUsage {
+  /** Host CPU busy percentage over the window since the previous read. */
+  cpuPercent: number;
+  memory: UsageSample;
+  /** null when the volume could not be read (network drive down, no access). */
+  disk: DiskUsage | null;
+}
+
 export interface SecretBackendStatus {
   available: boolean;
   encrypted: boolean;
@@ -213,6 +232,8 @@ export interface HeadTerminalApi {
     listOllamaModels(): Promise<string[]>;
     deleteClaudeProfile(path: string): Promise<void>;
     getPlatform(): Promise<PlatformInfo>;
+    /** CPU/memory/disk of the whole machine, sampled since the previous call. */
+    getResourceUsage(): Promise<ResourceUsage>;
   };
   secrets: {
     has(key: AllowedSecretKey): Promise<boolean>;

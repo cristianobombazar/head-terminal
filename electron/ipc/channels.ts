@@ -33,6 +33,7 @@ export const IPC_CHANNELS = {
     listOllamaModels: "system:list-ollama-models",
     deleteClaudeProfile: "system:delete-claude-profile",
     getPlatform: "system:get-platform",
+    getResourceUsage: "system:get-resource-usage",
   },
   secrets: {
     has: "secrets:has",

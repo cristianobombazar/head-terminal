@@ -59,6 +59,8 @@ const api: HeadTerminalApi = {
     deleteClaudeProfile: (path) =>
       ipcRenderer.invoke(IPC_CHANNELS.system.deleteClaudeProfile, path),
     getPlatform: () => ipcRenderer.invoke(IPC_CHANNELS.system.getPlatform),
+    getResourceUsage: () =>
+      ipcRenderer.invoke(IPC_CHANNELS.system.getResourceUsage),
   },
   secrets: {
     has: (key) => ipcRenderer.invoke(IPC_CHANNELS.secrets.has, key),

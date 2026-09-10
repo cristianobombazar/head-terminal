@@ -29,6 +29,7 @@ import {
   readWebKitLocalStorageDatabase,
 } from "./services/migration-service";
 import { PtyService } from "./services/pty-service";
+import { getResourceUsage } from "./services/resource-usage-service";
 import { SecretService } from "./services/secret-service";
 import * as systemService from "./services/system-service";
 import { ensureAgentClis } from "./services/agent-cli-install-service";
@@ -268,6 +269,7 @@ async function createServices(): Promise<{
       ensureAgentClis,
       listOllamaModels: systemService.listOllamaModels,
       deleteClaudeProfile: systemService.deleteClaudeProfile,
+      getResourceUsage,
       getPlatform: () => ({
         platform: process.platform,
         arch: arch(),

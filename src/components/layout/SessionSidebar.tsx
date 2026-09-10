@@ -46,6 +46,7 @@ import {
 } from "../ui/Icons";
 import { StatusDot } from "../ui/StatusDot";
 import { SessionContextMenu } from "./SessionContextMenu";
+import { SystemResourceMeter } from "./SystemResourceMeter";
 
 interface SessionSidebarProps {
   sessions: AgentSession[];
@@ -543,8 +544,8 @@ export function SessionSidebar({
         ))}
       </ul>
 
-      {collapsed && (
-        <div className="session-sidebar__footer">
+      <div className="session-sidebar__footer">
+        {collapsed && (
           <button
             type="button"
             className="session-sidebar__compact-new"
@@ -554,8 +555,9 @@ export function SessionSidebar({
           >
             <IconPlus size={16} />
           </button>
-        </div>
-      )}
+        )}
+        <SystemResourceMeter collapsed={collapsed} />
+      </div>
 
       {contextMenu && (
         <SessionContextMenu
