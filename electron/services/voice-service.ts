@@ -5,6 +5,37 @@ import path from "node:path";
 import { spawn as nodeSpawn } from "node:child_process";
 
 const TRANSCRIPTION_URL = "https://api.openai.com/v1/audio/transcriptions";
+const TRANSCRIPTION_MODEL = "gpt-transcribe";
+/**
+ * Dictation here is Brazilian Portuguese sprinkled with English tooling names,
+ * so both languages are declared rather than pinning the model to `pt`.
+ */
+const TRANSCRIPTION_LANGUAGES = ["pt", "en"] as const;
+const TRANSCRIPTION_PROMPT =
+  "Ditado de comandos e instruções para um terminal de desenvolvimento, "
+  + "em português do Brasil com termos técnicos em inglês.";
+/**
+ * Literal hints for words the model would otherwise spell out as Portuguese.
+ * They are hints, not required output — keep the list to terms actually
+ * spoken at this terminal, since unrelated entries can be hallucinated in.
+ */
+const TRANSCRIPTION_KEYWORDS = [
+  "git",
+  "commit",
+  "branch",
+  "merge",
+  "rebase",
+  "pull request",
+  "npm",
+  "pnpm",
+  "build",
+  "deploy",
+  "log",
+  "test",
+  "Claude",
+  "Codex",
+  "prompt",
+] as const;
 const WAV_HEADER_BYTES = 44;
 /** Roughly a second of Opus; below this there is nothing to transcribe. */
 const MIN_AUDIO_BYTES = 2_048;
@@ -312,8 +343,16 @@ export class VoiceService {
   ): Promise<string> {
     const form = new FormData();
     form.append("file", new Blob([bytes], { type: audio.mime }), audio.name);
-    form.append("model", "gpt-4o-transcribe");
-    form.append("language", "pt");
+    form.append("model", TRANSCRIPTION_MODEL);
+    form.append("prompt", TRANSCRIPTION_PROMPT);
+    // `gpt-transcribe` takes arrays through the `[]` suffix, and `languages`
+    // replaces the singular `language` field — sending both is rejected.
+    for (const language of TRANSCRIPTION_LANGUAGES) {
+      form.append("languages[]", language);
+    }
+    for (const keyword of TRANSCRIPTION_KEYWORDS) {
+      form.append("keywords[]", keyword);
+    }
 
     const abort = new AbortController();
     const timeout = timer(this.transcriptionTimeoutMs, () => abort.abort());

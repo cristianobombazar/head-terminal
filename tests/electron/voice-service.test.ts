@@ -251,6 +251,27 @@ describe("VoiceService", () => {
       expect(recorders).toHaveLength(0);
     });
 
+    it("asks gpt-transcribe for the transcript with both languages", async () => {
+      const fetchImpl = vi.fn(
+        async () =>
+          new Response(JSON.stringify({ text: "ok" }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
+      );
+      const service = createService({ fetch: fetchImpl });
+
+      await service.transcribeAudio(audio, "audio/webm");
+
+      const body = fetchImpl.mock.calls[0]![1]!.body as FormData;
+      expect(body.get("model")).toBe("gpt-transcribe");
+      // `languages` replaces the singular field; sending both is rejected.
+      expect(body.get("language")).toBeNull();
+      expect(body.getAll("languages[]")).toEqual(["pt", "en"]);
+      expect(body.getAll("keywords[]")).toContain("rebase");
+      expect(typeof body.get("prompt")).toBe("string");
+    });
+
     it("falls back to webm for a container it does not know", async () => {
       const fetchImpl = vi.fn(
         async () =>
