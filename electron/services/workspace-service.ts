@@ -61,6 +61,8 @@ export function isPersistedWorkspace(value: unknown): value is PersistedWorkspac
       || typeof session.ollamaThinkOff === "boolean")
     && (session.ggufPath === undefined
       || isBoundedString(session.ggufPath, 4_096))
+    && (session.wslDistro === undefined
+      || isBoundedString(session.wslDistro, 64))
     && (session.pinned === undefined || typeof session.pinned === "boolean")
     && isLayoutNode(session.layout));
 }

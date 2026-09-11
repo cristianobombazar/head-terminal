@@ -7,6 +7,8 @@ import {
   POWERSHELL_COMMAND,
   resolvePowerShell,
   resolveWindowsCwd,
+  resolveWsl,
+  WSL_COMMAND,
 } from "./windows-shell";
 
 const require = createRequire(import.meta.url);
@@ -102,6 +104,8 @@ export interface PtyServiceOptions {
    * Defaults to PowerShell 7 when installed, else Windows PowerShell 5.1.
    */
   windowsShell?: string;
+  /** Executable the abstract `wsl` command resolves to on Windows. */
+  wslShell?: string;
   /** Kills a Windows pane's process tree. Injected so tests never taskkill. */
   killWindowsTree?: (pid: number) => Promise<void>;
   /** Directory check for the Windows cwd fallback. Defaults to the filesystem. */
@@ -282,6 +286,7 @@ export class PtyService {
   private readonly windowsHome: string;
   private readonly platform: NodeJS.Platform;
   private readonly windowsShell: string;
+  private readonly wslShell: string;
   private readonly killWindowsTree: (pid: number) => Promise<void>;
   private readonly pathExists: (path: string) => boolean;
 
@@ -296,6 +301,7 @@ export class PtyService {
     this.windowsHome = options.windowsHome ?? homedir();
     this.platform = options.platform ?? process.platform;
     this.windowsShell = options.windowsShell ?? resolvePowerShell();
+    this.wslShell = options.wslShell ?? resolveWsl();
     this.killWindowsTree = options.killWindowsTree ?? killWindowsProcessTree;
     this.pathExists = options.pathExists ?? existsSync;
   }
@@ -320,15 +326,20 @@ export class PtyService {
     const env = buildEnvironment(this.baseEnv, request.env);
 
     // The platform boundary is here and nowhere else. The renderer speaks in
-    // abstract terms — `powershell` as the shell, whatever cwd the workspace
-    // carries — and Windows resolves both: the shell to the executable that
-    // is actually installed, the cwd to a directory that actually exists
-    // (a workspace saved by the WSL-era app still holds POSIX paths).
+    // abstract terms — `powershell` or `wsl` as the shell, whatever cwd the
+    // workspace carries — and Windows resolves both: the shell to the
+    // executable that is actually installed, the cwd to a directory that
+    // actually exists (a workspace saved by the WSL-era app still holds POSIX
+    // paths). `wsl.exe` takes that Windows cwd and translates it itself.
     const onWindows = this.platform === "win32";
     const launch = {
-      file: onWindows && request.command === POWERSHELL_COMMAND
-        ? this.windowsShell
-        : request.command,
+      file: !onWindows
+        ? request.command
+        : request.command === POWERSHELL_COMMAND
+          ? this.windowsShell
+          : request.command === WSL_COMMAND
+            ? this.wslShell
+            : request.command,
       args,
     };
     const cwd = onWindows

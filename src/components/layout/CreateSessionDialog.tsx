@@ -34,6 +34,7 @@ import {
   loadLastGgufPath,
   loadLastOllamaModel,
   loadLastOllamaThinkOff,
+  loadLastWslDistro,
   loadRecentCwds,
   noteRecentCwd,
   saveLastAgent,
@@ -41,6 +42,7 @@ import {
   saveLastGgufPath,
   saveLastOllamaModel,
   saveLastOllamaThinkOff,
+  saveLastWslDistro,
   type LlamaAgentId,
 } from "../../core/ui-preferences";
 import {
@@ -68,6 +70,7 @@ interface CreateSessionDialogProps {
       ollamaModel?: string;
       ollamaThinkOff?: boolean;
       ggufPath?: string;
+      wslDistro?: string;
     },
   ) => void;
 }
@@ -87,6 +90,8 @@ let cliStatusCache: AgentCliStatus | null = null;
 // `ollama list` starts the daemon on a cold machine, so the answer is kept
 // for the app's lifetime like the CLI probe above.
 let ollamaModelsCache: string[] | null = null;
+// Distributions only change when the user installs one; kept the same way.
+let wslDistrosCache: string[] | null = null;
 
 function cliAvailable(status: AgentCliStatus, id: string): boolean {
   if (id === "shell") {
@@ -197,6 +202,10 @@ export function CreateSessionDialog({
   const [ollamaModel, setOllamaModel] = useState("");
   const [ollamaThinkOff, setOllamaThinkOff] = useState(false);
   const [ggufPath, setGgufPath] = useState("");
+  // null while `wsl -l` is still answering.
+  const [wslDistros, setWslDistros] = useState<string[] | null>(null);
+  // "" is PowerShell; anything else is the WSL distribution to open.
+  const [wslDistro, setWslDistro] = useState("");
   const [isGitRepo, setIsGitRepo] = useState(false);
   const [useWorktree, setUseWorktree] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -269,6 +278,7 @@ export function CreateSessionDialog({
           : "",
       );
       setRecentCwds(loadRecentCwds());
+      setWslDistro(loadLastWslDistro());
       if (cliStatusCache) {
         setCliStatus(cliStatusCache);
       }
@@ -336,6 +346,35 @@ export function CreateSessionDialog({
       .then((models) => {
         ollamaModelsCache = models;
         apply(models);
+      })
+      .catch(() => apply([]));
+    return () => {
+      cancelled = true;
+    };
+  }, [agentProfileId, open]);
+
+  // Asked for only once a plain shell is picked on Windows. A remembered
+  // distribution that is no longer installed falls back to PowerShell.
+  useEffect(() => {
+    if (!open || agentProfileId !== "shell" || !isWindowsHost()) {
+      return;
+    }
+    let cancelled = false;
+    const apply = (distros: string[]) => {
+      if (cancelled) {
+        return;
+      }
+      setWslDistros(distros);
+      setWslDistro((current) => (distros.includes(current) ? current : ""));
+    };
+    if (wslDistrosCache) {
+      apply(wslDistrosCache);
+      return;
+    }
+    void window.headTerminal.system.listWslDistros()
+      .then((distros) => {
+        wslDistrosCache = distros;
+        apply(distros);
       })
       .catch(() => apply([]));
     return () => {
@@ -426,6 +465,10 @@ export function CreateSessionDialog({
     if (isLlamaAgent(agentProfileId)) {
       saveLastGgufPath(agentProfileId, ggufPath);
     }
+    const shellOnWsl = agentProfileId === "shell" && isWindowsHost();
+    if (shellOnWsl) {
+      saveLastWslDistro(wslDistro);
+    }
     onCreate(sessionCwd, agentProfileId, {
       claudeAccountId:
         agentProfileId === "claude" ? claudeAccountId : undefined,
@@ -436,6 +479,7 @@ export function CreateSessionDialog({
       ggufPath: isLlamaAgent(agentProfileId)
         ? sanitizeGgufPath(ggufPath)
         : undefined,
+      wslDistro: shellOnWsl && wslDistro ? wslDistro : undefined,
     });
     onClose();
   };
@@ -666,6 +710,37 @@ export function CreateSessionDialog({
             hardwareDetail="27B denso: a placa já está cheia (~6,3 GB). ~4 tok/s com metade das camadas na CPU. Thinking off, mlock. Não use este fit em outra quantidade de VRAM."
             downloadHint={`O GGUF não vai no git — só o caminho nesta máquina. Arquivo típico: ${QWEN27_HF_FILE}.`}
           />
+        )}
+
+        {agentProfileId === "shell" && isWindowsHost() && (
+          <fieldset className="create-session-dialog__fieldset">
+            <legend>Onde abrir</legend>
+            <div className="create-session-dialog__profiles">
+              {["", ...(wslDistros ?? [])].map((distro) => (
+                <button
+                  key={distro || "powershell"}
+                  type="button"
+                  className={
+                    distro === wslDistro
+                      ? "create-session-dialog__profile create-session-dialog__profile--active"
+                      : "create-session-dialog__profile"
+                  }
+                  aria-pressed={distro === wslDistro}
+                  onClick={() => setWslDistro(distro)}
+                >
+                  <span>{distro || "PowerShell"}</span>
+                  <small>{distro ? "WSL" : "Windows"}</small>
+                </button>
+              ))}
+            </div>
+            <span className="create-session-dialog__hint">
+              {wslDistros === null
+                ? "Procurando distribuições WSL…"
+                : wslDistros.length > 0
+                  ? "A escolha fica lembrada para a próxima sessão."
+                  : "Nenhuma distribuição WSL encontrada — só PowerShell."}
+            </span>
+          </fieldset>
         )}
 
         {agentProfileId === "claude" && (

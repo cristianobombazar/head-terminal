@@ -3,6 +3,7 @@ import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 
 import { runCommand } from "./command-runner";
+import { parseWslDistros } from "./windows-shell";
 import { HT_UNIX_CMD_FN, UNIX_USER_BIN_PATH_EXPORT } from "../../src/core/unix-cli-probe";
 
 const CLAUDE_PROFILE_ID =
@@ -175,6 +176,27 @@ export async function listOllamaModels(): Promise<string[]> {
     .map((line) => line.split(/\s+/u)[0]?.trim() ?? "")
     .filter((name) => name.length > 0 && name.length <= 128)
     .slice(0, 200);
+}
+
+/**
+ * WSL distributions a shell pane can open, the default first. Without WSL
+ * (or off Windows) the answer is an empty list and the dialog offers
+ * PowerShell alone.
+ */
+export async function listWslDistros(
+  platform: NodeJS.Platform = process.platform,
+): Promise<string[]> {
+  if (platform !== "win32") {
+    return [];
+  }
+  const stdout = await runCommand("wsl.exe", ["-l", "-v"], {
+    maxBuffer: 64 * 1024,
+    timeoutMs: CLI_CHECK_TIMEOUT_MS,
+  }).then(
+    (result) => result.stdout,
+    () => "",
+  );
+  return parseWslDistros(stdout);
 }
 
 function claudeProfilesRoot(): string {

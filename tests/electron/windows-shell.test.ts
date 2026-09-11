@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   legacyPosixToWindowsPath,
+  parseWslDistros,
   resolvePowerShell,
   resolveWindowsCwd,
+  resolveWsl,
 } from "../../electron/services/windows-shell";
 
 const ENV = {
@@ -11,6 +13,36 @@ const ENV = {
   LOCALAPPDATA: "C:\\Users\\m\\AppData\\Local",
   SystemRoot: "C:\\WINDOWS",
 };
+
+describe("WSL", () => {
+  it("resolves wsl.exe from System32", () => {
+    expect(resolveWsl(ENV)).toBe("C:\\WINDOWS\\System32\\wsl.exe");
+  });
+
+  it("lists distributions from `wsl -l -v`, default first, without Docker's", () => {
+    const table = [
+      "  NAME                   STATE           VERSION",
+      "  docker-desktop         Running         2",
+      "  Ubuntu-24.04           Stopped         2",
+      "* Ubuntu                 Stopped         2",
+      "  docker-desktop-data    Stopped         2",
+      "",
+    ].join("\r\n");
+    expect(parseWslDistros(table)).toEqual(["Ubuntu", "Ubuntu-24.04"]);
+  });
+
+  it("reads the UTF-16LE output wsl.exe prints by default", () => {
+    // Decoded as UTF-8, every UTF-16LE character carries a trailing NUL.
+    const utf16AsUtf8 = "  NAME  STATE  VERSION\r\n* Ubuntu  Stopped  2\r\n"
+      .split("")
+      .join("\0");
+    expect(parseWslDistros(utf16AsUtf8)).toEqual(["Ubuntu"]);
+  });
+
+  it("answers nothing when WSL is not installed", () => {
+    expect(parseWslDistros("")).toEqual([]);
+  });
+});
 
 describe("resolvePowerShell", () => {
   it("prefers PowerShell 7 from Program Files", () => {

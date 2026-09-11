@@ -18,6 +18,7 @@ interface TerminalPaneProps {
   ollamaModel?: string;
   ollamaThinkOff?: boolean;
   ggufPath?: string;
+  wslDistro?: string;
   isVisible: boolean;
   shouldSpawn: boolean;
   isActive: boolean;
@@ -42,6 +43,7 @@ export function TerminalPane({
   ollamaModel,
   ollamaThinkOff,
   ggufPath,
+  wslDistro,
   isVisible,
   shouldSpawn,
   isActive,
@@ -68,6 +70,7 @@ export function TerminalPane({
     ollamaModel,
     ollamaThinkOff,
     ggufPath,
+    wslDistro,
     isVisible,
     shouldSpawn,
     containerRef,

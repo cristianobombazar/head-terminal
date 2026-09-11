@@ -603,6 +603,7 @@ export function SessionSidebar({
                   ollamaModel: contextMenu.session.ollamaModel,
                   ollamaThinkOff: contextMenu.session.ollamaThinkOff,
                   ggufPath: contextMenu.session.ggufPath,
+                  wslDistro: contextMenu.session.wslDistro,
                 },
               ),
             );

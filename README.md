@@ -83,7 +83,8 @@ hosting PowerShell — PowerShell 7 when installed, Windows PowerShell 5.1
 otherwise — and the agents are their Windows builds on `PATH`. Repositories are
 ordinary `C:\...` folders; `git`, the watcher (`fs.watch`) and the transcript
 lookup under `%USERPROFILE%\.head-terminal\claude-profiles\<id>` all run on the
-Windows side. WSL is not involved.
+Windows side. WSL is not involved, except for a plain shell session the user
+opens on a WSL distribution (see below).
 
 Requirements:
 
@@ -110,7 +111,7 @@ Known differences on Windows:
 | Area | Behaviour |
 |---|---|
 | Voice | Recording depends on `parecord`; the button is hidden until capture moves into the renderer. |
-| Shell | The pane shell is PowerShell; agent profiles are PowerShell scripts (`-EncodedCommand`), the `zsh` profiles are Linux/macOS only. |
+| Shell | The pane shell is PowerShell; agent profiles are PowerShell scripts (`-EncodedCommand`), the `zsh` profiles are Linux/macOS only. A *Shell* session can instead open a WSL distribution (`wsl.exe -d <distro>`, picked in the new-session dialog), starting in the session folder under `/mnt/<drive>`. |
 | Installer | `npm run make` produces a Squirrel installer. Code signing is still pending, as is macOS notarization. |
 
 ### macOS

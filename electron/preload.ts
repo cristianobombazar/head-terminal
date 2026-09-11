@@ -57,6 +57,8 @@ const api: HeadTerminalApi = {
     ensureAgentClis: () => ipcRenderer.invoke(IPC_CHANNELS.system.ensureAgentClis),
     listOllamaModels: () =>
       ipcRenderer.invoke(IPC_CHANNELS.system.listOllamaModels),
+    listWslDistros: () =>
+      ipcRenderer.invoke(IPC_CHANNELS.system.listWslDistros),
     deleteClaudeProfile: (path) =>
       ipcRenderer.invoke(IPC_CHANNELS.system.deleteClaudeProfile, path),
     getPlatform: () => ipcRenderer.invoke(IPC_CHANNELS.system.getPlatform),

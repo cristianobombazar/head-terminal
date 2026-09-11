@@ -22,6 +22,7 @@ export interface PersistedSession {
   ollamaModel?: string;
   ollamaThinkOff?: boolean;
   ggufPath?: string;
+  wslDistro?: string;
   layout: LayoutNode;
   pinned?: boolean;
 }
@@ -50,6 +51,7 @@ function toPersistedSession(session: AgentSession): PersistedSession {
     ollamaModel: session.ollamaModel,
     ollamaThinkOff: session.ollamaThinkOff,
     ggufPath: session.ggufPath,
+    wslDistro: session.wslDistro,
     layout: session.layout,
     pinned: session.pinned,
   };

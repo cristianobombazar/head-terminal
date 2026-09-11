@@ -4,6 +4,7 @@ import {
   AGENT_FALLBACK_OSC,
   AGENT_RESUME_FALLBACK_OSC,
   WINDOWS_SHELL_COMMAND,
+  WSL_SHELL_COMMAND,
 } from "./agents-shared";
 import {
   WINDOWS_ORNITH_DEFAULT_GGUF,
@@ -140,6 +141,22 @@ describe("Windows agent profiles", () => {
     expect(shell.args).toContain("-NoExit");
     expect(scriptOf(shell.args)).toContain("[Console]::OutputEncoding");
     expect(scriptOf(shell.args)).not.toContain("__ht_osc 7770");
+  });
+
+  it("opens a plain shell pane on the chosen WSL distribution", () => {
+    const profiles = buildWindowsAgentProfiles({ wslDistro: "Ubuntu-24.04" });
+    expect(profiles.shell.command).toBe(WSL_SHELL_COMMAND);
+    expect(profiles.shell.args).toEqual(["-d", "Ubuntu-24.04"]);
+    // Only the plain shell moves; the agents stay on PowerShell.
+    expect(profiles.claude.command).toBe(WINDOWS_SHELL_COMMAND);
+  });
+
+  it("stays on PowerShell when the distribution name is not one", () => {
+    for (const wslDistro of ["", "Ubuntu --exec rm", "-e", "Ubuntu;ls"]) {
+      expect(buildWindowsAgentProfiles({ wslDistro }).shell.command).toBe(
+        WINDOWS_SHELL_COMMAND,
+      );
+    }
   });
 });
 

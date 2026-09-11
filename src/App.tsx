@@ -153,9 +153,10 @@ function App() {
         ollamaModel?: string;
         ollamaThinkOff?: boolean;
         ggufPath?: string;
+        wslDistro?: string;
       },
     ) => {
-      const title = nextAgentSessionTitle(agentProfileId, sessions);
+      const title = nextAgentSessionTitle(agentProfileId, sessions, extras?.wslDistro);
       addSession(
         createInitialSession(
           cwd,

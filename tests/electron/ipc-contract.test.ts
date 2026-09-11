@@ -124,7 +124,7 @@ describe("Electron IPC contract", () => {
     const channels = flattenChannels(IPC_CHANNELS);
 
     expect(new Set(channels).size).toBe(channels.length);
-    expect(channels).toHaveLength(57);
+    expect(channels).toHaveLength(58);
     expect(channels.every((channel) => /^[a-z]+:[a-z][a-z-]*$/.test(channel))).toBe(true);
   });
 
@@ -236,6 +236,35 @@ describe("Electron IPC contract", () => {
       }),
     ).toThrow(/approved shell/);
     expect(spawn).not.toHaveBeenCalled();
+  });
+
+  it("accepts a WSL pane only as `wsl -d <distro>`", async () => {
+    const harness = fakeWindow();
+    const spawn = vi.fn(() => ({ id: "pane-1", pid: 321 }));
+    registerIpc({
+      window: harness.window,
+      services: { terminal: { spawn, write: vi.fn(), resize: vi.fn(), kill: vi.fn() } },
+    });
+    const base = { id: "pane-1", command: "wsl", cwd: "C:\\Users\\m", cols: 100, rows: 30 };
+
+    const input = { ...base, args: ["-d", "Ubuntu-24.04"] };
+    expect(
+      await invoke(IPC_CHANNELS.terminal.spawn, harness.trustedEvent, input),
+    ).toEqual({ id: "pane-1", pid: 321 });
+    expect(spawn).toHaveBeenCalledWith(73, input);
+
+    for (const args of [
+      [],
+      ["-d", "Ubuntu", "--exec", "rm", "-rf", "/"],
+      ["-e", "rm -rf /"],
+      ["-d", "Ubuntu;rm"],
+      ["-u", "root"],
+    ]) {
+      expect(() =>
+        invoke(IPC_CHANNELS.terminal.spawn, harness.trustedEvent, { ...base, args }),
+      ).toThrow(/args/);
+    }
+    expect(spawn).toHaveBeenCalledTimes(1);
   });
 
   it("rejects malformed PTY, secret and workspace payloads before services run", () => {

@@ -40,6 +40,7 @@ interface UsePtyProcessOptions {
   ollamaModel?: string;
   ollamaThinkOff?: boolean;
   ggufPath?: string;
+  wslDistro?: string;
   restartKey: number;
   continueConversation: boolean;
   resumeSessionId?: string;
@@ -61,6 +62,7 @@ export function usePtyProcess({
   ollamaModel,
   ollamaThinkOff,
   ggufPath,
+  wslDistro,
   restartKey,
   continueConversation,
   resumeSessionId,
@@ -177,6 +179,7 @@ export function usePtyProcess({
           ollamaThinkOff,
           ggufPath,
           claudeConfigDir,
+          wslDistro,
         });
         const startsNewConversation =
           !continueConversation || Boolean(resumeSessionId);
@@ -339,6 +342,7 @@ export function usePtyProcess({
     ollamaModel,
     ollamaThinkOff,
     ggufPath,
+    wslDistro,
     continueConversation,
     resumeSessionId,
     cwd,

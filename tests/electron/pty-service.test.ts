@@ -359,6 +359,7 @@ describe("PtyService", () => {
 
 describe("PtyService on Windows", () => {
   const PWSH = "C:\\Program Files\\PowerShell\\7\\pwsh.exe";
+  const WSL = "C:\\Windows\\System32\\wsl.exe";
   const SHELL_ARGS = ["-NoLogo", "-NoExit", "-EncodedCommand", "AAA="];
 
   function windowsHarness(options?: { existing?: string[]; hangKill?: boolean }) {
@@ -375,6 +376,7 @@ describe("PtyService on Windows", () => {
       env: { PATH: "C:\\Windows" },
       windowsHome: "C:\\Users\\m",
       windowsShell: PWSH,
+      wslShell: WSL,
       pathExists: (path) => existing.has(path),
       killWindowsTree: async (pid) => {
         killed.push(pid);
@@ -406,6 +408,22 @@ describe("PtyService on Windows", () => {
 
     expect(calls[0].file).toBe(PWSH);
     expect(calls[0].args).toEqual(SHELL_ARGS);
+    expect(calls[0].options.cwd).toBe("C:\\Users\\m\\repo");
+  });
+
+  it("resolves the abstract wsl command and hands it the Windows cwd", () => {
+    const { service, calls } = windowsHarness();
+
+    service.spawn(7, {
+      id: "pane-1",
+      command: "wsl",
+      args: ["-d", "Ubuntu"],
+      cwd: "C:\\Users\\m\\repo",
+    });
+
+    expect(calls[0].file).toBe(WSL);
+    expect(calls[0].args).toEqual(["-d", "Ubuntu"]);
+    // wsl.exe translates it to /mnt/c/Users/m/repo itself.
     expect(calls[0].options.cwd).toBe("C:\\Users\\m\\repo");
   });
 

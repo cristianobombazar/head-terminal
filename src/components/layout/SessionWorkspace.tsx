@@ -132,6 +132,7 @@ export const SessionWorkspace = memo(function SessionWorkspace({
               ollamaModel={session.ollamaModel}
               ollamaThinkOff={session.ollamaThinkOff}
               ggufPath={session.ggufPath}
+              wslDistro={session.wslDistro}
               isVisible={isVisible && !isParked}
               shouldSpawn={shouldSpawn}
               isActive={isActive}

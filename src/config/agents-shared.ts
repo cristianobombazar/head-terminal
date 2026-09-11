@@ -29,6 +29,9 @@ export interface AgentProfileOptions {
    * the user's shell profile ran, so a `$PROFILE` / `.zshrc` that exports its
    * own value cannot silently move the pane onto another account. */
   claudeConfigDir?: string;
+  /** Windows only: the `shell` profile opens this WSL distribution instead
+   * of PowerShell. Ignored by every other profile and on Linux/macOS. */
+  wslDistro?: string;
 }
 
 /** A config dir is a path the pane's shell will single-quote; a control
@@ -47,6 +50,22 @@ export const DEFAULT_AGENT_PROFILE_ID = "cursor";
  * to PowerShell 7 or Windows PowerShell 5.1, whichever is installed.
  */
 export const WINDOWS_SHELL_COMMAND = "powershell";
+
+/**
+ * Abstract name of the WSL launcher, resolved by the main process to
+ * `System32\wsl.exe`. A pane asks for it only as `wsl -d <distro>`.
+ */
+export const WSL_SHELL_COMMAND = "wsl";
+
+// WSL distribution names are letters, digits, dots, dashes and underscores
+// (`Ubuntu`, `Ubuntu-24.04`, `kali-linux`). The name travels as an argv entry,
+// not through a shell, but it is still checked on both sides of the IPC.
+export const WSL_DISTRO = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
+
+export function sanitizeWslDistro(distro?: string): string | undefined {
+  const trimmed = distro?.trim();
+  return trimmed && WSL_DISTRO.test(trimmed) ? trimmed : undefined;
+}
 
 // Private OSC emitted between the agent dying and the shell fallback taking
 // over, so the UI can tell "agent crashed, shell active" apart from normal

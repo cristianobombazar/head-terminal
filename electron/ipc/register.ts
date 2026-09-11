@@ -44,7 +44,11 @@ import type {
   WritePtyInput,
 } from "../types/api";
 import { IPC_CHANNELS } from "./channels";
-import { WINDOWS_SHELL_COMMAND } from "../../src/config/agents-shared";
+import {
+  WINDOWS_SHELL_COMMAND,
+  WSL_DISTRO,
+  WSL_SHELL_COMMAND,
+} from "../../src/config/agents-shared";
 import { unsupported } from "./errors";
 import { asBoolean, asRecord, asString, assertTrustedSender } from "./validate";
 import { isPersistedWorkspace } from "../services/workspace-service";
@@ -78,6 +82,7 @@ export interface IpcServices {
     checkAgentClis(): Promise<AgentCliStatus>;
     ensureAgentClis(): Promise<AgentCliInstallResult>;
     listOllamaModels?(): Promise<string[]>;
+    listWslDistros?(): Promise<string[]>;
     deleteClaudeProfile(path: string): Promise<void>;
     getPlatform(): Promise<PlatformInfo> | PlatformInfo;
     getResourceUsage?(): Promise<ResourceUsage>;
@@ -291,6 +296,10 @@ export function registerIpc({
   handle(IPC_CHANNELS.system.listOllamaModels, () =>
     services.system?.listOllamaModels?.() ??
       unsupported("system.listOllamaModels"),
+  );
+  handle(IPC_CHANNELS.system.listWslDistros, () =>
+    services.system?.listWslDistros?.() ??
+      unsupported("system.listWslDistros"),
   );
   handle(IPC_CHANNELS.system.deleteClaudeProfile, (_event, value) =>
     services.system?.deleteClaudeProfile(
@@ -523,9 +532,10 @@ const POWERSHELL_SWITCHES = new Set([
 const BASE64 = /^[A-Za-z0-9+/]+={0,2}$/u;
 
 /**
- * A pane launches one of two shells, each with a fixed argv shape: a login
- * zsh with at most `-l -c <script>`, or PowerShell with a handful of switches
- * and an encoded script. Anything else is not something the renderer builds.
+ * A pane launches one of three shells, each with a fixed argv shape: a login
+ * zsh with at most `-l -c <script>`, PowerShell with a handful of switches
+ * and an encoded script, or `wsl -d <distro>`. Anything else is not something
+ * the renderer builds.
  */
 function validateShellArgs(command: string, args: unknown): string[] {
   if (
@@ -536,6 +546,13 @@ function validateShellArgs(command: string, args: unknown): string[] {
   }
   if (ZSH_COMMANDS.has(command)) {
     if (args.length > 3) {
+      throw new TypeError("args must be an array of strings");
+    }
+    return args;
+  }
+  // WSL: a distribution and nothing else — no `--exec`, no `--`, no user.
+  if (command === WSL_SHELL_COMMAND) {
+    if (args.length !== 2 || args[0] !== "-d" || !WSL_DISTRO.test(args[1])) {
       throw new TypeError("args must be an array of strings");
     }
     return args;
@@ -564,7 +581,11 @@ function validateSpawnInput(value: unknown): SpawnPtyInput {
   const cols = positiveInteger(input.cols, "cols", 1_000);
   const rows = positiveInteger(input.rows, "rows", 1_000);
   const command = asString(input.command, "command", { maxLength: 16_384 });
-  if (!ZSH_COMMANDS.has(command) && command !== WINDOWS_SHELL_COMMAND) {
+  if (
+    !ZSH_COMMANDS.has(command)
+    && command !== WINDOWS_SHELL_COMMAND
+    && command !== WSL_SHELL_COMMAND
+  ) {
     throw new TypeError("command must be an approved shell");
   }
   const args = validateShellArgs(command, input.args);

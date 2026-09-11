@@ -270,6 +270,7 @@ async function createServices(): Promise<{
       checkAgentClis: systemService.checkAgentClis,
       ensureAgentClis,
       listOllamaModels: systemService.listOllamaModels,
+      listWslDistros: () => systemService.listWslDistros(),
       deleteClaudeProfile: systemService.deleteClaudeProfile,
       getResourceUsage,
       getPlatform: () => ({

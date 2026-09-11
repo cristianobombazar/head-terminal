@@ -32,6 +32,9 @@ export interface AgentSession {
   ollamaThinkOff?: boolean;
   /** GGUF on this machine for llama.cpp profiles (Ornith / Qwen). */
   ggufPath?: string;
+  /** Windows `shell` sessions only: open this WSL distribution instead of
+   * PowerShell. Absent means PowerShell. */
+  wslDistro?: string;
   layout: LayoutNode;
   pinned?: boolean;
 }

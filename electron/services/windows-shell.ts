@@ -3,10 +3,13 @@ import { execFile } from "node:child_process";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
+import { WSL_DISTRO } from "../../src/config/agents-shared";
+
 /**
  * The Windows side of the platform boundary. Panes on Windows run natively:
  * node-pty's ConPTY hosts a PowerShell, and the agent CLIs are the Windows
- * builds on PATH. Nothing here knows about WSL any more.
+ * builds on PATH. The one exception is a plain shell pane the user opened on
+ * a WSL distribution, which runs `wsl.exe` under the same ConPTY.
  */
 
 /**
@@ -15,6 +18,12 @@ import { join } from "node:path";
  * process resolves it at spawn time.
  */
 export const POWERSHELL_COMMAND = "powershell";
+
+/** Abstract name of the WSL launcher, resolved like `powershell`. */
+export const WSL_COMMAND = "wsl";
+
+/** Distributions Docker Desktop installs for itself; not a shell anyone opens. */
+const HIDDEN_WSL_DISTROS = /^docker-desktop(-data)?$/iu;
 
 const WINDOWS_DRIVE = /^([A-Za-z]):(?:[\\/]|$)/u;
 const WSL_MOUNT = /^\/mnt\/([a-z])(?:\/(.*))?$/iu;
@@ -59,6 +68,42 @@ export function resolvePowerShell(options: WindowsShellOptions = {}): string {
   }
   const systemRoot = env.SystemRoot ?? env.windir ?? "C:\Windows";
   return join(systemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
+}
+
+/** `wsl.exe` always lives in System32; resolved so PATH cannot swap it. */
+export function resolveWsl(env: NodeJS.ProcessEnv = process.env): string {
+  const systemRoot = env.SystemRoot ?? env.windir ?? "C:\\Windows";
+  return join(systemRoot, "System32", "wsl.exe");
+}
+
+/**
+ * Distribution names from `wsl.exe -l -v`, the default one first. The output
+ * is UTF-16LE unless `WSL_UTF8` is honoured, so NULs are dropped either way;
+ * the header row is localized and skipped by position. Docker Desktop's own
+ * distributions are left out.
+ */
+export function parseWslDistros(stdout: string): string[] {
+  const rows = stdout
+    .replaceAll("\0", "")
+    .replace(/^\uFEFF/u, "")
+    .split(/\r?\n/u)
+    .slice(1)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const distros: string[] = [];
+  for (const row of rows) {
+    const isDefault = row.startsWith("*");
+    const name = row.replace(/^\*\s*/u, "").split(/\s+/u)[0] ?? "";
+    if (!WSL_DISTRO.test(name) || HIDDEN_WSL_DISTROS.test(name)) {
+      continue;
+    }
+    if (isDefault) {
+      distros.unshift(name);
+    } else {
+      distros.push(name);
+    }
+  }
+  return distros;
 }
 
 /**

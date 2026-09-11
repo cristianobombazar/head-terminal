@@ -15,6 +15,7 @@ interface UseAgentSessionOptions {
   ollamaModel?: string;
   ollamaThinkOff?: boolean;
   ggufPath?: string;
+  wslDistro?: string;
   isVisible: boolean;
   shouldSpawn: boolean;
   containerRef: React.RefObject<HTMLDivElement | null>;
@@ -29,6 +30,7 @@ export function useAgentSession({
   ollamaModel,
   ollamaThinkOff,
   ggufPath,
+  wslDistro,
   isVisible,
   shouldSpawn,
   containerRef,
@@ -120,6 +122,7 @@ export function useAgentSession({
     ollamaModel,
     ollamaThinkOff,
     ggufPath,
+    wslDistro,
     restartKey,
     continueConversation,
     resumeSessionId,

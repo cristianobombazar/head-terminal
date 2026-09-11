@@ -270,6 +270,7 @@ export interface PersistedWorkspace {
     ollamaModel?: string;
     ollamaThinkOff?: boolean;
     ggufPath?: string;
+    wslDistro?: string;
     layout: unknown;
     pinned?: boolean;
   }>;
@@ -319,6 +320,9 @@ export interface HeadTerminalApi {
     ensureAgentClis(): Promise<AgentCliInstallResult>;
     /** Models already pulled locally; empty when ollama or its daemon is off. */
     listOllamaModels(): Promise<string[]>;
+    /** WSL distributions on this machine, the default first; empty off Windows
+     * or without WSL. Docker Desktop's own distributions are left out. */
+    listWslDistros(): Promise<string[]>;
     deleteClaudeProfile(path: string): Promise<void>;
     getPlatform(): Promise<PlatformInfo>;
     /** CPU/memory/disk of the whole machine, sampled since the previous call. */

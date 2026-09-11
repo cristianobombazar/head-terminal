@@ -13,9 +13,11 @@ import {
   QWEN27_HF_FILE,
   RESUME_FAILURE_WINDOW_SECONDS,
   WINDOWS_SHELL_COMMAND,
+  WSL_SHELL_COMMAND,
   sanitizeClaudeConfigDir,
   sanitizeOllamaModel,
   sanitizeResumeSessionId,
+  sanitizeWslDistro,
   type AgentProfile,
   type AgentProfileOptions,
 } from "./agents-shared";
@@ -246,11 +248,26 @@ function shellArgs(): string[] {
   return ["-NoLogo", "-NoExit", "-EncodedCommand", encodePowerShellCommand(PRELUDE)];
 }
 
+/**
+ * A plain shell pane inside a WSL distribution: the user's default login
+ * shell there. `wsl.exe` translates the pane's Windows cwd on its own
+ * (`C:\x` → `/mnt/c/x`), so no path is handed over.
+ */
+function wslShellProfile(distro: string): AgentProfile {
+  return {
+    id: "shell",
+    label: AGENT_PROFILE_LABELS.shell,
+    command: WSL_SHELL_COMMAND,
+    args: ["-d", distro],
+  };
+}
+
 export function buildWindowsAgentProfiles(
   options: AgentProfileOptions,
 ): Record<string, AgentProfile> {
   const continueConversation = options.continueConversation ?? false;
   const { resumeSessionId } = options;
+  const wslDistro = sanitizeWslDistro(options.wslDistro);
   const profile = (id: string, args: string[]): AgentProfile => ({
     id,
     label: AGENT_PROFILE_LABELS[id] ?? id,
@@ -269,6 +286,6 @@ export function buildWindowsAgentProfiles(
     ollama: profile("ollama", ollamaArgs(options.ollamaModel, options.ollamaThinkOff)),
     ornith: profile("ornith", ornithArgs(options.ggufPath)),
     qwen27: profile("qwen27", qwen27Args(options.ggufPath)),
-    shell: profile("shell", shellArgs()),
+    shell: wslDistro ? wslShellProfile(wslDistro) : profile("shell", shellArgs()),
   };
 }

@@ -12,6 +12,7 @@ const LAST_OLLAMA_MODEL_KEY = "head-terminal.last-ollama-model";
 const LAST_OLLAMA_THINK_OFF_KEY = "head-terminal.last-ollama-think-off";
 const LAST_ORNITH_GGUF_KEY = "head-terminal.last-ornith-gguf";
 const LAST_QWEN27_GGUF_KEY = "head-terminal.last-qwen27-gguf";
+const LAST_WSL_DISTRO_KEY = "head-terminal.last-wsl-distro";
 const MIGRATION_APPLIED_KEY = "head-terminal.migration.preferences.v1";
 
 const MIGRATABLE_KEYS = new Set([
@@ -203,6 +204,15 @@ export function loadLastOllamaThinkOff(): boolean {
 
 export function saveLastOllamaThinkOff(thinkOff: boolean): void {
   storageSet(LAST_OLLAMA_THINK_OFF_KEY, thinkOff ? "1" : "0");
+}
+
+/** Where the last shell session opened: a WSL distribution, or "" for PowerShell. */
+export function loadLastWslDistro(): string {
+  return storageGet(LAST_WSL_DISTRO_KEY) ?? "";
+}
+
+export function saveLastWslDistro(distro: string): void {
+  storageSet(LAST_WSL_DISTRO_KEY, distro);
 }
 
 export type LlamaAgentId = "ornith" | "qwen27";

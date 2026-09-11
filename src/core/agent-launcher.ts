@@ -37,6 +37,7 @@ export function createInitialSession(
     ollamaModel?: string;
     ollamaThinkOff?: boolean;
     ggufPath?: string;
+    wslDistro?: string;
   } = {},
 ): AgentSession {
   const profile = getAgentProfile(agentProfileId);
@@ -51,6 +52,7 @@ export function createInitialSession(
     ollamaModel: extras.ollamaModel,
     ollamaThinkOff: extras.ollamaThinkOff,
     ggufPath: extras.ggufPath,
+    wslDistro: extras.wslDistro,
   });
 }
 
@@ -67,13 +69,16 @@ const AGENT_SHORT_NAME: Record<string, string> = {
 
 // "Claude 1", "Claude 2", "OpenAI 1"... — conta só sessões do mesmo agent
 // pra não pular número quando há sessões de outros agents já criadas.
+// Um shell no WSL leva o nome da distro ("Ubuntu 1") e conta à parte.
 export function nextAgentSessionTitle(
   agentProfileId: string,
   existingSessions: AgentSession[],
+  wslDistro?: string,
 ): string {
-  const name = AGENT_SHORT_NAME[agentProfileId] ?? agentProfileId;
+  const name = wslDistro ?? AGENT_SHORT_NAME[agentProfileId] ?? agentProfileId;
   const count = existingSessions.filter(
-    (session) => session.agentProfileId === agentProfileId,
+    (session) =>
+      session.agentProfileId === agentProfileId && session.wslDistro === wslDistro,
   ).length;
   return `${name} ${count + 1}`;
 }

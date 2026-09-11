@@ -31,6 +31,7 @@ export const IPC_CHANNELS = {
     checkAgentClis: "system:check-agent-clis",
     ensureAgentClis: "system:ensure-agent-clis",
     listOllamaModels: "system:list-ollama-models",
+    listWslDistros: "system:list-wsl-distros",
     deleteClaudeProfile: "system:delete-claude-profile",
     getPlatform: "system:get-platform",
     getResourceUsage: "system:get-resource-usage",
