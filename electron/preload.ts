@@ -4,6 +4,7 @@ import { IPC_CHANNELS } from "./ipc/channels";
 import type {
   GitChangedEvent,
   HeadTerminalApi,
+  LiveDelegationProgress,
   PtyDataEvent,
   PtyExitEvent,
   Unsubscribe,
@@ -77,6 +78,17 @@ const api: HeadTerminalApi = {
     transcribeAudio: (bytes, mimeType) =>
       ipcRenderer.invoke(IPC_CHANNELS.voice.transcribeAudio, bytes, mimeType),
   },
+  live: {
+    createSession: (input) => ipcRenderer.invoke(IPC_CHANNELS.live.createSession, input),
+    delegate: (input) => ipcRenderer.invoke(IPC_CHANNELS.live.delegate, input),
+    cancelDelegation: (delegationId) =>
+      ipcRenderer.invoke(IPC_CHANNELS.live.cancelDelegation, delegationId),
+    onDelegationProgress: (callback) =>
+      subscribe<LiveDelegationProgress>(IPC_CHANNELS.live.delegationProgress, callback),
+    onToggleRequested: (callback) =>
+      subscribe(IPC_CHANNELS.live.toggleRequested, callback),
+    onEndRequested: (callback) => subscribe(IPC_CHANNELS.live.endRequested, callback),
+  },
   mcp: {
     list: (cwd, agent) => ipcRenderer.invoke(IPC_CHANNELS.mcp.list, cwd, agent),
   },
@@ -95,6 +107,7 @@ const api: HeadTerminalApi = {
     readForTerminal: () => ipcRenderer.invoke(IPC_CHANNELS.clipboard.readForTerminal),
     importPaths: (paths) =>
       ipcRenderer.invoke(IPC_CHANNELS.clipboard.importPaths, paths),
+    saveImage: () => ipcRenderer.invoke(IPC_CHANNELS.clipboard.saveImage),
     pathForFile: (file) => {
       try {
         return webUtils.getPathForFile(file as File);

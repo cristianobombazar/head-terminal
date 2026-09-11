@@ -124,7 +124,7 @@ describe("Electron IPC contract", () => {
     const channels = flattenChannels(IPC_CHANNELS);
 
     expect(new Set(channels).size).toBe(channels.length);
-    expect(channels).toHaveLength(50);
+    expect(channels).toHaveLength(57);
     expect(channels.every((channel) => /^[a-z]+:[a-z][a-z-]*$/.test(channel))).toBe(true);
   });
 
@@ -137,6 +137,9 @@ describe("Electron IPC contract", () => {
       IPC_CHANNELS.terminal.exit,
       IPC_CHANNELS.git.changed,
       IPC_CHANNELS.notifications.activated,
+      IPC_CHANNELS.live.toggleRequested,
+      IPC_CHANNELS.live.endRequested,
+      IPC_CHANNELS.live.delegationProgress,
     ]);
     const expected = flattenChannels(IPC_CHANNELS).filter(
       (channel) => !mainToRendererOnly.has(channel),
@@ -279,6 +282,127 @@ describe("Electron IPC contract", () => {
     expect(services.terminal?.spawn).not.toHaveBeenCalled();
     expect(services.secrets?.has).not.toHaveBeenCalled();
     expect(services.workspace?.save).not.toHaveBeenCalled();
+  });
+
+  it("validates the pane conversation a voice session asks to pick up", async () => {
+    const harness = fakeWindow();
+    const createSession = vi.fn(async () => ({ sessionId: null, sdp: "answer" }));
+    registerIpc({
+      window: harness.window,
+      services: {
+        live: { createSession, delegate: vi.fn(), cancelDelegation: vi.fn(async () => undefined) },
+      },
+    });
+    const base = { sdp: "offer", cwd: "/tmp/project", agent: "claude" };
+
+    // The id becomes a file name under the profile's transcripts.
+    expect(() =>
+      invoke(IPC_CHANNELS.live.createSession, harness.trustedEvent, {
+        ...base,
+        paneConversation: { agent: "claude", sessionId: "../../etc/passwd" },
+      }),
+    ).toThrow(/session id/);
+    expect(() =>
+      invoke(IPC_CHANNELS.live.createSession, harness.trustedEvent, {
+        ...base,
+        paneConversation: { agent: "cursor", sessionId: "04bb555b-b7ca-41bd-823f-468ff79b7783" },
+      }),
+    ).toThrow(/agent/);
+    expect(createSession).not.toHaveBeenCalled();
+
+    const paneConversation = {
+      agent: "claude",
+      sessionId: "04bb555b-b7ca-41bd-823f-468ff79b7783",
+      claudeConfigDir: "/home/me/.head-terminal/claude-profiles/default",
+    };
+    await invoke(IPC_CHANNELS.live.createSession, harness.trustedEvent, { ...base, paneConversation });
+    expect(createSession).toHaveBeenCalledWith(
+      expect.objectContaining({ ...base, branch: null, resumeNote: null, paneConversation }),
+    );
+  });
+
+  it("validates brainstorm delegations before an agent runs", async () => {
+    const harness = fakeWindow();
+    const delegate = vi.fn(async () => ({ summary: "s", details: "d", agentSessionId: null }));
+    registerIpc({
+      window: harness.window,
+      services: {
+        live: {
+          createSession: vi.fn(),
+          delegate,
+          cancelDelegation: vi.fn(async () => undefined),
+        },
+      },
+    });
+    const base = {
+      delegationId: "item_1",
+      agent: "claude",
+      cwd: "/tmp/project",
+      transcript: "Usuário: olha o upload",
+      claudeConfigDir: "/home/me/.head-terminal/claude-profiles/default",
+    };
+
+    expect(() =>
+      invoke(IPC_CHANNELS.live.delegate, harness.trustedEvent, { ...base, agent: "ollama" }),
+    ).toThrow(/agent/);
+    // A resume id lands on the agent's command line: nothing but an id passes.
+    expect(() =>
+      invoke(IPC_CHANNELS.live.delegate, harness.trustedEvent, {
+        ...base,
+        resume: { sessionId: "abc; rm -rf /", fork: true },
+      }),
+    ).toThrow(/session id/);
+    expect(delegate).not.toHaveBeenCalled();
+
+    const resume = { sessionId: "04bb555b-b7ca-41bd-823f-468ff79b7783", fork: true };
+    await invoke(IPC_CHANNELS.live.delegate, harness.trustedEvent, { ...base, resume });
+    expect(delegate).toHaveBeenCalledWith(73, { ...base, resume }, expect.any(Function));
+
+    // The agent's steps stream back to the renderer tagged with the delegation.
+    const onProgress = delegate.mock.calls[0]?.[2] as (event: unknown) => void;
+    onProgress({ text: "lendo api.ts" });
+    expect(harness.sent).toContainEqual([
+      IPC_CHANNELS.live.delegationProgress,
+      { delegationId: "item_1", text: "lendo api.ts" },
+    ]);
+
+    expect(() =>
+      invoke(IPC_CHANNELS.live.delegate, harness.trustedEvent, {
+        ...base,
+        attachments: new Array(9).fill("C:/shot.png"),
+      }),
+    ).toThrow(/attachments/);
+  });
+
+  it("forwards a bare F10 to the renderer before the menu bar can take it", () => {
+    const harness = fakeWindow();
+    registerIpc({ window: harness.window });
+    const call = vi.mocked(harness.window.webContents.on).mock.calls.find(
+      ([name]) => name === "before-input-event",
+    );
+    const onBeforeInput = call?.[1] as (event: unknown, input: unknown) => void;
+    const keyDown = { type: "keyDown", key: "F10", alt: false, control: false, shift: false, meta: false };
+
+    const event = { preventDefault: vi.fn() };
+    onBeforeInput(event, keyDown);
+    expect(event.preventDefault).toHaveBeenCalledOnce();
+    expect(harness.sent).toEqual([[IPC_CHANNELS.live.toggleRequested, undefined]]);
+
+    const shifted = { preventDefault: vi.fn() };
+    onBeforeInput(shifted, { ...keyDown, shift: true });
+    onBeforeInput(shifted, { ...keyDown, key: "F9" });
+    expect(shifted.preventDefault).not.toHaveBeenCalled();
+    expect(harness.sent).toHaveLength(1);
+
+    // F11 ends the brainstorm; a held key fires once.
+    const end = { preventDefault: vi.fn() };
+    onBeforeInput(end, { ...keyDown, key: "F11" });
+    onBeforeInput(end, { ...keyDown, key: "F11", isAutoRepeat: true });
+    expect(end.preventDefault).toHaveBeenCalledTimes(2);
+    expect(harness.sent).toEqual([
+      [IPC_CHANNELS.live.toggleRequested, undefined],
+      [IPC_CHANNELS.live.endRequested, undefined],
+    ]);
   });
 
   it("rejects requests from another WebContents or subframe", () => {

@@ -127,6 +127,11 @@ export class ClipboardPasteService {
     return found;
   }
 
+  /** A screenshot in the clipboard, written as PNG; the host path, not the agent's. */
+  async saveImageFromClipboard(): Promise<string | null> {
+    return this.saveClipboardImage();
+  }
+
   private async saveClipboardImage(): Promise<string | null> {
     const formats = safeFormats(this.clipboard);
     // Explorer file copies often list FileNameW with no image/*. Still try

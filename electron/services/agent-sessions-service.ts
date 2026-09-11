@@ -83,7 +83,7 @@ const STRIP_TAG_ONLY = /<\/?user_query[^>]*>/gi;
 const STRIP_ATTACHMENT = /\[(?:image|imagem|screenshot)(?:\s*#\d+)?\]/gi;
 const STRIP_ANSI = /\u001B\[[0-9;]*[A-Za-z]/g;
 
-function isEnoent(error: unknown): boolean {
+export function isEnoent(error: unknown): boolean {
   return (error as NodeJS.ErrnoException)?.code === "ENOENT";
 }
 
@@ -91,7 +91,7 @@ function truncate(text: string, max: number): string {
   return text.length > max ? `${text.slice(0, max - 1)}…` : text;
 }
 
-function cleanTitleText(raw: string): string {
+export function cleanTitleText(raw: string): string {
   return raw
     .replace(STRIP_OUTPUT_BLOCK, " ")
     .replace(STRIP_BLOCK_TAG, " ")
@@ -342,7 +342,7 @@ function cwdLookupSpellings(cwd: string): string[] {
   return [...new Set([cwd, cwd.replaceAll("\\", "/")])];
 }
 
-async function resolveEncodedProjectDir(
+export async function resolveEncodedProjectDir(
   root: string,
   cwd: string,
   encode: (cwd: string) => string,
@@ -386,7 +386,7 @@ async function resolveProjectDir(
 
 /** `C:\Users\me` -> `C--Users-me`, `/home/dev/my.app` -> `-home-dev-my-app`.
  * The drive colon and the backslash are separators here just like `/` is. */
-function encodeClaudeProjectDir(cwd: string): string {
+export function encodeClaudeProjectDir(cwd: string): string {
   return cwd.replace(/[/\\.:]/g, "-");
 }
 
@@ -544,7 +544,7 @@ async function readCodexIndex(
 /** Walks sessions/YYYY/MM/DD newest-first, stopping once `limit` files have
  * been collected so a year of history doesn't turn every click into a full
  * filesystem sweep. */
-async function collectCodexRolloutFiles(
+export async function collectCodexRolloutFiles(
   codexRoot: string,
   limit: number,
 ): Promise<Array<{ path: string; mtime: number; birthtime: number }>> {
@@ -590,7 +590,7 @@ interface CodexSessionMeta {
  * opened for one of its own subagents shares the parent's cwd and would
  * otherwise show up in the list as a conversation the user never started
  * (and `codex resume` on it lands inside the subagent's thread). */
-async function readCodexSessionMeta(filePath: string): Promise<CodexSessionMeta | null> {
+export async function readCodexSessionMeta(filePath: string): Promise<CodexSessionMeta | null> {
   const [firstLine] = await readFirstLines(filePath, 1);
   if (!firstLine) return null;
   let parsed: unknown;

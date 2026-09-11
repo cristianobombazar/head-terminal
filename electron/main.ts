@@ -33,6 +33,7 @@ import { getResourceUsage } from "./services/resource-usage-service";
 import { SecretService } from "./services/secret-service";
 import * as systemService from "./services/system-service";
 import { ensureAgentClis } from "./services/agent-cli-install-service";
+import { LiveBrainstormService } from "./services/live-brainstorm-service";
 import { VoiceService } from "./services/voice-service";
 import { WorkspaceService } from "./services/workspace-service";
 import { bindWindowsTaskbarLaunch } from "./services/windows-launcher";
@@ -257,6 +258,7 @@ async function createServices(): Promise<{
   });
   const git = createGitService();
   const voice = new VoiceService({ secrets });
+  const live = new LiveBrainstormService({ secrets, homeDir: systemService.getHome() });
   const mcp = new McpService();
 
   const ipcServices: IpcServices = {
@@ -318,6 +320,7 @@ async function createServices(): Promise<{
     },
     secrets,
     voice,
+    live,
     mcp,
     sessions: {
       listResumable: (cwd, agent, claudeConfigDir) =>
@@ -361,6 +364,7 @@ async function createServices(): Promise<{
         git.dispose();
         await Promise.all([
           voice.dispose(),
+          live.dispose(),
           diagnostics.flush(),
           workspace.flush(),
           secrets.flush(),

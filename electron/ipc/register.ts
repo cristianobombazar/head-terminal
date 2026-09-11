@@ -12,11 +12,19 @@ import type {
   AgentCliInstallResult,
   AgentCliStatus,
   AllowedSecretKey,
+  BrainstormAgent,
   CheckpointInput,
   ConfirmInput,
   GitChangedEvent,
   GitContextPayload,
   GitWatchInput,
+  LiveDelegationInput,
+  LiveDelegationProgress,
+  LiveDelegationResult,
+  LiveHistoryMessage,
+  LiveSessionAnswer,
+  LivePaneConversation,
+  LiveSessionInput,
   McpServersPayload,
   MigratedPreferences,
   NotificationInput,
@@ -41,6 +49,7 @@ import { unsupported } from "./errors";
 import { asBoolean, asRecord, asString, assertTrustedSender } from "./validate";
 import { isPersistedWorkspace } from "../services/workspace-service";
 import { ClipboardPasteService } from "../services/clipboard-paste-service";
+import { AGENT_SESSION_ID_PATTERN } from "../services/live-brainstorm-service";
 
 export interface IpcServices {
   terminal?: {
@@ -86,6 +95,16 @@ export interface IpcServices {
     transcribeAudio(bytes: Uint8Array, mimeType: string): Promise<string>;
     cleanup?(ownerId: number): Promise<void> | void;
   };
+  live?: {
+    createSession(input: LiveSessionInput): Promise<LiveSessionAnswer>;
+    delegate(
+      ownerId: number,
+      input: LiveDelegationInput,
+      onProgress?: (event: Omit<LiveDelegationProgress, "delegationId">) => void,
+    ): Promise<LiveDelegationResult>;
+    cancelDelegation(ownerId: number, delegationId: string): Promise<void>;
+    cleanup?(ownerId: number): Promise<void> | void;
+  };
   mcp?: {
     list(cwd: string, agent: SupportedAgent): Promise<McpServersPayload>;
   };
@@ -111,6 +130,7 @@ export interface IpcServices {
   clipboardPaste?: {
     readForTerminal(): Promise<string | null>;
     importPaths(paths: unknown): Promise<string | null>;
+    saveImageFromClipboard(): Promise<string | null>;
   };
 }
 
@@ -324,6 +344,27 @@ export function registerIpc({
       ?? unsupported("voice.transcribeAudio")
     );
   });
+  handle(IPC_CHANNELS.live.createSession, (_event, value) =>
+    services.live?.createSession(validateLiveSessionInput(value)) ??
+      unsupported("live.createSession"),
+  );
+  handle(IPC_CHANNELS.live.delegate, (_event, value) => {
+    const input = validateLiveDelegationInput(value);
+    return (
+      services.live?.delegate(ownerId, input, (progress) =>
+        send(IPC_CHANNELS.live.delegationProgress, {
+          delegationId: input.delegationId,
+          ...progress,
+        }),
+      ) ?? unsupported("live.delegate")
+    );
+  });
+  handle(IPC_CHANNELS.live.cancelDelegation, (_event, value) =>
+    services.live?.cancelDelegation(
+      ownerId,
+      asString(value, "delegationId", { maxLength: 256 }),
+    ) ?? unsupported("live.cancelDelegation"),
+  );
   handle(IPC_CHANNELS.mcp.list, (_event, cwd, agent) =>
     services.mcp?.list(
       asString(cwd, "cwd", { maxLength: 16_384 }),
@@ -349,6 +390,7 @@ export function registerIpc({
   handle(IPC_CHANNELS.clipboard.importPaths, (_event, paths) =>
     pasteService.importPaths(paths),
   );
+  handle(IPC_CHANNELS.clipboard.saveImage, () => pasteService.saveImageFromClipboard());
   handle(IPC_CHANNELS.notifications.show, (_event, value) => {
     const input = validateNotificationInput(value);
     if (!Notification.isSupported()) return;
@@ -398,6 +440,7 @@ export function registerIpc({
     cleanupStarted = true;
     void services.terminal?.cleanup?.(ownerId);
     void services.voice?.cleanup?.(ownerId);
+    void services.live?.cleanup?.(ownerId);
     for (const watchId of ownedGitWatches) {
       void services.git?.unwatch(watchId);
     }
@@ -414,6 +457,29 @@ export function registerIpc({
   window.webContents.on("destroyed", cleanupOwner);
   window.webContents.on("render-process-gone", cleanupOwner);
   window.webContents.on("did-start-loading", onRendererReload);
+  // Windows gives F10 to the native menu bar before the page sees it, so the
+  // brainstorm shortcuts are caught here and forwarded instead: F10 pauses or
+  // resumes the voice, F11 ends the brainstorm.
+  const BRAINSTORM_KEYS: Record<string, string> = {
+    F10: IPC_CHANNELS.live.toggleRequested,
+    F11: IPC_CHANNELS.live.endRequested,
+  };
+  const onBeforeInput = (event: Electron.Event, input: Electron.Input) => {
+    const channel = BRAINSTORM_KEYS[input.key];
+    if (
+      !channel
+      || input.type !== "keyDown"
+      || input.alt
+      || input.control
+      || input.shift
+      || input.meta
+    ) {
+      return;
+    }
+    event.preventDefault();
+    if (!input.isAutoRepeat) send(channel);
+  };
+  window.webContents.on("before-input-event", onBeforeInput);
 
   const remove = () => {
     registeredHandles.forEach((channel) => ipcMain.removeHandler(channel));
@@ -425,6 +491,7 @@ export function registerIpc({
       window.webContents.removeListener("destroyed", cleanupOwner);
       window.webContents.removeListener("render-process-gone", cleanupOwner);
       window.webContents.removeListener("did-start-loading", onRendererReload);
+      window.webContents.removeListener("before-input-event", onBeforeInput);
     }
   };
   removeCurrentHandlers = remove;
@@ -581,6 +648,121 @@ function validateResumableAgent(value: unknown): ResumableAgent {
     throw new TypeError("agent must be claude, codex or cursor");
   }
   return value;
+}
+
+const MAX_ATTACHMENTS = 8;
+
+function validateBrainstormAgent(value: unknown): BrainstormAgent {
+  if (value !== "claude" && value !== "codex" && value !== "cursor") {
+    throw new TypeError("agent must be claude, codex or cursor");
+  }
+  return value;
+}
+
+const MAX_HISTORY_MESSAGES = 128;
+
+function validateLiveHistory(value: unknown): LiveHistoryMessage[] {
+  if (!Array.isArray(value) || value.length > MAX_HISTORY_MESSAGES) {
+    throw new TypeError(`history must be a list of at most ${MAX_HISTORY_MESSAGES} messages`);
+  }
+  return value.map((entry, index) => {
+    const record = asRecord(entry, `history[${index}]`);
+    if (record.role !== "user" && record.role !== "assistant") {
+      throw new TypeError(`history[${index}].role must be user or assistant`);
+    }
+    return {
+      role: record.role,
+      text: asString(record.text, `history[${index}].text`, { allowEmpty: true, maxLength: 8_000 }),
+    };
+  });
+}
+
+function validateLiveSessionInput(value: unknown): LiveSessionInput {
+  const input = asRecord(value, "input");
+  return {
+    sdp: asString(input.sdp, "sdp", { maxLength: 64_000 }),
+    cwd: asString(input.cwd, "cwd", { maxLength: 16_384 }),
+    agent: input.agent === null ? null : validateBrainstormAgent(input.agent),
+    branch:
+      input.branch === undefined || input.branch === null
+        ? null
+        : asString(input.branch, "branch", { maxLength: 512 }),
+    ...(input.history === undefined ? {} : { history: validateLiveHistory(input.history) }),
+    resumeNote:
+      input.resumeNote === undefined || input.resumeNote === null
+        ? null
+        : asString(input.resumeNote, "resumeNote", { maxLength: 4_000 }),
+    ...(input.paneConversation === undefined || input.paneConversation === null
+      ? {}
+      : { paneConversation: validateLivePaneConversation(input.paneConversation) }),
+  };
+}
+
+function validateLivePaneConversation(value: unknown): LivePaneConversation {
+  const record = asRecord(value, "paneConversation");
+  if (record.agent !== "claude" && record.agent !== "codex") {
+    throw new TypeError("paneConversation.agent must be claude or codex");
+  }
+  const sessionId = asString(record.sessionId, "paneConversation.sessionId", { maxLength: 128 });
+  // The id becomes a file name under the profile's transcripts.
+  if (!AGENT_SESSION_ID_PATTERN.test(sessionId)) {
+    throw new TypeError("paneConversation.sessionId is not an agent session id");
+  }
+  return {
+    agent: record.agent,
+    sessionId,
+    ...(record.claudeConfigDir === undefined
+      ? {}
+      : {
+          claudeConfigDir: asString(record.claudeConfigDir, "paneConversation.claudeConfigDir", {
+            maxLength: 4_096,
+          }),
+        }),
+  };
+}
+
+function validateLiveDelegationInput(value: unknown): LiveDelegationInput {
+  const input = asRecord(value, "input");
+  let resume: LiveDelegationInput["resume"];
+  if (input.resume !== undefined) {
+    const record = asRecord(input.resume, "resume");
+    const sessionId = asString(record.sessionId, "resume.sessionId", { maxLength: 128 });
+    // The id can end up on an agent's command line.
+    if (!AGENT_SESSION_ID_PATTERN.test(sessionId)) {
+      throw new TypeError("resume.sessionId is not an agent session id");
+    }
+    resume = { sessionId, fork: asBoolean(record.fork, "resume.fork") };
+  }
+  let attachments: string[] | undefined;
+  if (input.attachments !== undefined) {
+    if (!Array.isArray(input.attachments) || input.attachments.length > MAX_ATTACHMENTS) {
+      throw new TypeError(`attachments must be a list of at most ${MAX_ATTACHMENTS} paths`);
+    }
+    attachments = input.attachments.map((entry, index) =>
+      asString(entry, `attachments[${index}]`, { maxLength: 4_096 }),
+    );
+  }
+  return {
+    delegationId: asString(input.delegationId, "delegationId", { maxLength: 256 }),
+    agent: validateBrainstormAgent(input.agent),
+    cwd: asString(input.cwd, "cwd", { maxLength: 16_384 }),
+    transcript: asString(input.transcript, "transcript", {
+      allowEmpty: true,
+      maxLength: 64_000,
+    }),
+    ...(input.continuation === undefined
+      ? {}
+      : { continuation: asBoolean(input.continuation, "continuation") }),
+    ...(attachments ? { attachments } : {}),
+    ...(input.claudeConfigDir === undefined
+      ? {}
+      : {
+          claudeConfigDir: asString(input.claudeConfigDir, "claudeConfigDir", {
+            maxLength: 4_096,
+          }),
+        }),
+    ...(resume ? { resume } : {}),
+  };
 }
 
 function validateNotificationInput(value: unknown): NotificationInput {

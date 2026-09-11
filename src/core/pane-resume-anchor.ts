@@ -2,6 +2,10 @@ import {
   fetchResumableSessions,
   isResumableAgent,
 } from "./agent-sessions-bridge";
+import {
+  isBackgroundAgentSession,
+  isBackgroundAgentTitle,
+} from "./background-agent-sessions";
 import { useSessionStore } from "./session-manager";
 
 // The CLI writes its transcript when the conversation gets its first message,
@@ -218,7 +222,11 @@ export async function anchorPaneResumeSession(
       (entry) =>
         Date.parse(entry.updatedAt) >= threshold
         && !taken.has(entry.id)
-        && !preExisting.has(entry.id),
+        && !preExisting.has(entry.id)
+        // A voice-brainstorm analysis writes its own transcript into this
+        // same folder; it is never the conversation the pane is on.
+        && !isBackgroundAgentSession(entry.id)
+        && !isBackgroundAgentTitle(entry.title),
     );
     if (fresh) {
       useSessionStore.getState().notePaneResumeAnchor(paneId, fresh.id);

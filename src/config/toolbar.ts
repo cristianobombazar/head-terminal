@@ -2,6 +2,8 @@ export const CLEAR_SHORTCUT = "Ctrl+Shift+L";
 export const HARD_CLEAR_SHORTCUT = "Ctrl+Shift+Alt+L";
 export const COMMAND_PALETTE_SHORTCUT = "Ctrl+Shift+P";
 export const VOICE_SHORTCUT = "F9";
+export const BRAINSTORM_SHORTCUT = "F10";
+export const BRAINSTORM_END_SHORTCUT = "F11";
 
 export interface ToolbarCommand {
   id: string;
@@ -94,7 +96,7 @@ export const PALETTE_ACTIONS: ToolbarCommand[] = [
     id: "settings",
     label: "Configurações",
     command: "__settings__",
-    description: "Configura a chave da API OpenAI para transcrição de voz",
+    description: "Configura a chave da API OpenAI para ditado e brainstorm por voz",
   },
   {
     id: "voice-input",
@@ -102,5 +104,13 @@ export const PALETTE_ACTIONS: ToolbarCommand[] = [
     command: "__voice_input__",
     shortcut: VOICE_SHORTCUT,
     description: "Inicia ou para a gravação de voz no terminal ativo",
+  },
+  {
+    id: "voice-brainstorm",
+    label: "Brainstorm por voz",
+    command: "__voice_brainstorm__",
+    shortcut: BRAINSTORM_SHORTCUT,
+    description:
+      "Conversa por voz sobre o terminal ativo, já por dentro da conversa que estava nele; aparece como uma bolinha no canto (clique abre o painel; F10 pausa e retoma a voz, F11 encerra). O agente do terminal analisa e executa com a permissão dele",
   },
 ];

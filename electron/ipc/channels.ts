@@ -48,6 +48,14 @@ export const IPC_CHANNELS = {
     /** Audio the renderer recorded itself, where the main process cannot. */
     transcribeAudio: "voice:transcribe-audio",
   },
+  live: {
+    createSession: "live:create-session",
+    delegate: "live:delegate",
+    cancelDelegation: "live:cancel-delegation",
+    delegationProgress: "live:delegation-progress",
+    toggleRequested: "live:toggle-requested",
+    endRequested: "live:end-requested",
+  },
   mcp: { list: "mcp:list" },
   sessions: { listResumable: "sessions:list-resumable" },
   clipboard: {
@@ -55,6 +63,7 @@ export const IPC_CHANNELS = {
     writeText: "clipboard:write-text",
     readForTerminal: "clipboard:read-for-terminal",
     importPaths: "clipboard:import-paths",
+    saveImage: "clipboard:save-image",
   },
   notifications: {
     show: "notifications:show",

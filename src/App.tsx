@@ -16,6 +16,7 @@ import { useSessionStore } from "./core/session-manager";
 import { AppShell } from "./components/layout/AppShell";
 import { CreateSessionDialog } from "./components/layout/CreateSessionDialog";
 import { BootScreen } from "./components/BootScreen";
+import { BrainstormPanel } from "./components/brainstorm/BrainstormPanel";
 import { checkpoint, logError } from "./core/logger";
 import { prewarmOpenAiApiKey } from "./core/voice-input";
 import {
@@ -198,6 +199,7 @@ function App() {
         onClose={() => setCreateOpen(false)}
         onCreate={handleCreateConfirm}
       />
+      <BrainstormPanel />
     </>
   );
 }

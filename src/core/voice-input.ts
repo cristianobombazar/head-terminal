@@ -7,7 +7,7 @@ import { isCaptureSupported } from "./voice-capture";
 
 let audioCtx: AudioContext | null = null;
 
-function beep(freq: number): void {
+export function beep(freq: number): void {
   try {
     audioCtx ??= new AudioContext();
     const ctx = audioCtx;

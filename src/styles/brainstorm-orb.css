@@ -1,0 +1,341 @@
+/* The brainstorm orb: a holographic sphere in the corner of the terminal area.
+   It breathes with the audio level (--orb-level, 0..1, set once a frame by the
+   component), freezes mid-motion when the voice pauses, collapses when the
+   conversation ends and flushes red on an error. */
+
+.brainstorm-dock {
+  position: fixed;
+  right: var(--space-4);
+  bottom: var(--space-4);
+  z-index: var(--z-menu);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.brainstorm-orb {
+  --orb-size: 60px;
+  --orb-level: 0;
+  --orb-1: #8df1ff;
+  --orb-2: #35a2ff;
+  --orb-3: #0c3d8a;
+  --orb-glow: rgba(70, 180, 255, 0.55);
+  --orb-speed: 1;
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: var(--orb-size);
+  height: var(--orb-size);
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  filter: none;
+  transition: filter 400ms ease, opacity 300ms ease;
+  animation: brainstorm-orb-born 560ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.brainstorm-orb:disabled {
+  cursor: default;
+}
+
+.brainstorm-orb:focus-visible {
+  outline: none;
+}
+
+.brainstorm-orb:focus-visible .brainstorm-orb__ring--outer {
+  box-shadow: 0 0 0 2px var(--accent-subtle), 0 0 0 3px var(--accent);
+}
+
+/* Layers stack inside the button; each one below sets its own inset. */
+.brainstorm-orb__glow,
+.brainstorm-orb__ring,
+.brainstorm-orb__scan,
+.brainstorm-orb__core,
+.brainstorm-orb__pause {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+/* Soft light behind everything; swells with the voice. */
+.brainstorm-orb__glow {
+  inset: -30%;
+  background: radial-gradient(circle, var(--orb-glow) 0%, transparent 65%);
+  opacity: calc(0.45 + var(--orb-level) * 0.55);
+  transform: scale(calc(0.9 + var(--orb-level) * 0.5));
+  filter: blur(6px);
+  animation: brainstorm-orb-glow calc(3.2s / var(--orb-speed)) ease-in-out infinite;
+}
+
+/* Two thin dashed rings turning against each other, as a HUD would. */
+.brainstorm-orb__ring {
+  inset: 4%;
+  background: conic-gradient(
+    from 0deg,
+    var(--orb-1) 0deg 40deg,
+    transparent 40deg 60deg,
+    var(--orb-1) 60deg 150deg,
+    transparent 150deg 175deg,
+    var(--orb-1) 175deg 260deg,
+    transparent 260deg 290deg,
+    var(--orb-1) 290deg 330deg,
+    transparent 330deg 360deg
+  );
+  opacity: 0.85;
+  -webkit-mask: radial-gradient(circle, transparent calc(50% - 2px), #000 calc(50% - 1px), #000 50%, transparent calc(50% + 0.5px));
+  mask: radial-gradient(circle, transparent calc(50% - 2px), #000 calc(50% - 1px), #000 50%, transparent calc(50% + 0.5px));
+  animation: brainstorm-orb-spin calc(9s / var(--orb-speed)) linear infinite;
+}
+
+.brainstorm-orb__ring--inner {
+  inset: 17%;
+  background: conic-gradient(
+    from 90deg,
+    var(--orb-2) 0deg 110deg,
+    transparent 110deg 130deg,
+    var(--orb-2) 130deg 200deg,
+    transparent 200deg 250deg,
+    var(--orb-2) 250deg 320deg,
+    transparent 320deg 360deg
+  );
+  opacity: 0.7;
+  animation: brainstorm-orb-spin calc(5.5s / var(--orb-speed)) linear infinite reverse;
+}
+
+/* A faint sweep across the sphere, like a radar. */
+.brainstorm-orb__scan {
+  inset: 28%;
+  background: conic-gradient(from 0deg, transparent 0deg 300deg, rgba(255, 255, 255, 0.55) 360deg);
+  opacity: 0.35;
+  animation: brainstorm-orb-spin calc(2.8s / var(--orb-speed)) linear infinite;
+}
+
+/* The sphere itself: lit from the upper left, deeper blue toward the edge. */
+.brainstorm-orb__core {
+  inset: 30%;
+  background:
+    radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.85) 0%, transparent 28%),
+    radial-gradient(circle at 50% 55%, var(--orb-1) 0%, var(--orb-2) 45%, var(--orb-3) 100%);
+  box-shadow:
+    0 0 calc(10px + var(--orb-level) * 22px) var(--orb-glow),
+    inset 0 0 8px rgba(255, 255, 255, 0.25);
+  transform: scale(calc(1 + var(--orb-level) * 0.28));
+  transition: transform 80ms linear;
+  animation: brainstorm-orb-breathe calc(2.6s / var(--orb-speed)) ease-in-out infinite;
+}
+
+/* Two bars over the sphere while the voice is paused. */
+.brainstorm-orb__pause {
+  inset: 38%;
+  background:
+    linear-gradient(#fff, #fff) left center / 28% 100% no-repeat,
+    linear-gradient(#fff, #fff) right center / 28% 100% no-repeat;
+  border-radius: 0;
+  opacity: 0.9;
+}
+
+.brainstorm-orb__badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  background: var(--accent);
+  border-radius: 9px;
+  color: var(--accent-fg);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  pointer-events: none;
+}
+
+/* --- Moods --- */
+
+.brainstorm-orb--connecting {
+  --orb-speed: 2.2;
+}
+
+.brainstorm-orb--connecting .brainstorm-orb__core {
+  opacity: 0.6;
+}
+
+.brainstorm-orb--working {
+  --orb-speed: 1.8;
+}
+
+.brainstorm-orb--working .brainstorm-orb__ring--outer {
+  opacity: 1;
+}
+
+/* Frozen: every motion stops where it is and the light cools down. */
+.brainstorm-orb--paused {
+  filter: grayscale(0.75) brightness(0.75);
+}
+
+.brainstorm-orb--paused .brainstorm-orb__glow,
+.brainstorm-orb--paused .brainstorm-orb__ring,
+.brainstorm-orb--paused .brainstorm-orb__scan,
+.brainstorm-orb--paused .brainstorm-orb__core {
+  animation-play-state: paused;
+}
+
+.brainstorm-orb--paused .brainstorm-orb__scan {
+  opacity: 0;
+}
+
+.brainstorm-orb--error {
+  --orb-1: #ffb3ad;
+  --orb-2: #f85149;
+  --orb-3: #5a0f0f;
+  --orb-glow: rgba(248, 81, 73, 0.5);
+  --orb-speed: 0.4;
+}
+
+/* The end: a flash, then the sphere folds into nothing. */
+.brainstorm-orb--dying {
+  animation: brainstorm-orb-die 720ms cubic-bezier(0.55, 0, 0.9, 0.3) both;
+  pointer-events: none;
+}
+
+.brainstorm-orb--dying .brainstorm-orb__ring,
+.brainstorm-orb--dying .brainstorm-orb__scan {
+  animation-duration: 0.6s;
+}
+
+/* Header ornament: the same sphere, small, no interaction. */
+.brainstorm-orb--mini {
+  --orb-size: 22px;
+  animation: none;
+}
+
+.brainstorm-orb--mini .brainstorm-orb__glow {
+  inset: -20%;
+  filter: blur(3px);
+}
+
+.brainstorm-orb--mini .brainstorm-orb__ring,
+.brainstorm-orb--mini .brainstorm-orb__scan {
+  -webkit-mask: radial-gradient(circle, transparent calc(50% - 1.5px), #000 calc(50% - 1px), #000 50%, transparent calc(50% + 0.5px));
+  mask: radial-gradient(circle, transparent calc(50% - 1.5px), #000 calc(50% - 1px), #000 50%, transparent calc(50% + 0.5px));
+}
+
+.brainstorm-orb--mini .brainstorm-orb__badge,
+.brainstorm-orb--mini .brainstorm-orb__scan {
+  display: none;
+}
+
+.brainstorm-orb--mini.brainstorm-orb--dying {
+  animation: none;
+  opacity: 0.35;
+}
+
+/* --- Keyframes --- */
+
+@keyframes brainstorm-orb-born {
+  from {
+    opacity: 0;
+    transform: scale(0.2);
+    filter: brightness(2.2);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+    filter: brightness(1);
+  }
+}
+
+@keyframes brainstorm-orb-die {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+    filter: brightness(1);
+  }
+  28% {
+    opacity: 1;
+    transform: scale(1.22);
+    filter: brightness(2.4) saturate(0.6);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0);
+    filter: brightness(3) blur(2px);
+  }
+}
+
+@keyframes brainstorm-orb-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes brainstorm-orb-breathe {
+  0%,
+  100% {
+    filter: brightness(1);
+  }
+  50% {
+    filter: brightness(1.22);
+  }
+}
+
+@keyframes brainstorm-orb-glow {
+  0%,
+  100% {
+    filter: blur(6px);
+  }
+  50% {
+    filter: blur(9px);
+  }
+}
+
+/* The sheet grows out of the corner where the orb sits and folds back into it. */
+.brainstorm-panel {
+  transform-origin: 100% 100%;
+}
+
+.brainstorm-panel--opening {
+  animation: brainstorm-sheet-open 260ms cubic-bezier(0.2, 0.9, 0.3, 1.15) both;
+}
+
+.brainstorm-panel--closing {
+  animation: brainstorm-sheet-close 200ms cubic-bezier(0.4, 0, 1, 1) both;
+  pointer-events: none;
+}
+
+@keyframes brainstorm-sheet-open {
+  from {
+    opacity: 0;
+    transform: scale(0.15);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes brainstorm-sheet-close {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.15);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brainstorm-orb__glow,
+  .brainstorm-orb__ring,
+  .brainstorm-orb__scan,
+  .brainstorm-orb__core {
+    animation: none;
+  }
+}

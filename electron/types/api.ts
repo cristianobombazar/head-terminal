@@ -123,6 +123,95 @@ export interface ResourceUsage {
   disk: DiskUsage | null;
 }
 
+/** Agent CLIs a voice brainstorm can hand code questions to. */
+export type BrainstormAgent = "claude" | "codex" | "cursor";
+
+/** One thing said before a pause, replayed into the session that resumes it. */
+export interface LiveHistoryMessage {
+  role: "user" | "assistant";
+  text: string;
+}
+
+export interface LiveSessionInput {
+  /** SDP offer from the renderer's RTCPeerConnection. */
+  sdp: string;
+  /** The pane's folder, named in GPT-Live's instructions. */
+  cwd: string;
+  /** null when the pane runs nothing that can read code (a shell, a local model). */
+  agent: BrainstormAgent | null;
+  /** Current git branch of the folder, when the app knows it. */
+  branch?: string | null;
+  /** Conversation before a pause, oldest first, for the session that resumes it. */
+  history?: LiveHistoryMessage[];
+  /** What happened while the voice was paused, and how to pick the conversation back up. */
+  resumeNote?: string | null;
+  /**
+   * The pane's own agent conversation, so the voice picks it up instead of
+   * starting from zero. The main process reads the CLI's transcript itself.
+   */
+  paneConversation?: LivePaneConversation;
+}
+
+export interface LivePaneConversation {
+  agent: "claude" | "codex";
+  sessionId: string;
+  /** Claude only: the pane's profile, whose `projects/` holds the transcript. */
+  claudeConfigDir?: string;
+}
+
+export interface LiveSessionAnswer {
+  sessionId: string | null;
+  /** SDP answer for `setRemoteDescription`. */
+  sdp: string;
+  /** Something about the folder the user should see before speaking. */
+  warning?: string | null;
+  /** What the voice was told of the pane's conversation; null when none was found. */
+  paneConversation?: { messages: number; title: string | null } | null;
+}
+
+export interface LiveDelegationInput {
+  /** GPT-Live's delegation id; also the handle to cancel the run. */
+  delegationId: string;
+  agent: BrainstormAgent;
+  cwd: string;
+  /** Recent conversation, oldest first, each line labelled by speaker. */
+  transcript: string;
+  /** True when `transcript` holds only what was said since the previous
+   * delegation, because the agent conversation being resumed already has the rest. */
+  continuation?: boolean;
+  /** Images the user attached in the panel, as host paths the agent can read. */
+  attachments?: string[];
+  /** `CLAUDE_CONFIG_DIR` of the pane's Claude account. */
+  claudeConfigDir?: string;
+  /** Agent conversation to continue: the pane's own (forked, so it stays
+   * untouched) on the first delegation, the brainstorm's own afterwards. */
+  resume?: { sessionId: string; fork: boolean };
+}
+
+export interface LiveDelegationResult {
+  /** A few sentences for GPT-Live to speak. */
+  summary: string;
+  /** The full answer, shown in the panel. */
+  details: string;
+  /** Agent conversation the next delegation resumes. */
+  agentSessionId: string | null;
+  /** What the agent reported spending on this run, when it says. */
+  costUsd?: number | null;
+  /** Folder the user asked to switch to, verified to exist; the next delegation runs there. */
+  folder?: string | null;
+  /** Model the agent ran with, when the app knows it. */
+  model?: string | null;
+}
+
+/** A running analysis reporting on itself, one streamed line at a time. */
+export interface LiveDelegationProgress {
+  delegationId: string;
+  /** A step worth showing, such as "lendo voice-service.ts". */
+  text?: string;
+  /** The agent conversation this run writes to, as soon as the CLI says. */
+  agentSessionId?: string;
+}
+
 export interface SecretBackendStatus {
   available: boolean;
   encrypted: boolean;
@@ -248,6 +337,18 @@ export interface HeadTerminalApi {
     /** Transcribes audio the renderer captured through Chromium's mic stack. */
     transcribeAudio(bytes: Uint8Array, mimeType: string): Promise<string>;
   };
+  live: {
+    createSession(input: LiveSessionInput): Promise<LiveSessionAnswer>;
+    delegate(input: LiveDelegationInput): Promise<LiveDelegationResult>;
+    cancelDelegation(delegationId: string): Promise<void>;
+    /** Steps of a running delegation, as the agent's CLI streams them. */
+    onDelegationProgress(callback: (event: LiveDelegationProgress) => void): Unsubscribe;
+    /** F10, caught in the main process before Windows hands it to the menu bar:
+     * starts the brainstorm, or pauses and resumes its voice. */
+    onToggleRequested(callback: () => void): Unsubscribe;
+    /** F11: ends the brainstorm, analyses included. */
+    onEndRequested(callback: () => void): Unsubscribe;
+  };
   mcp: {
     list(cwd: string, agent: SupportedAgent): Promise<McpServersPayload>;
   };
@@ -267,6 +368,8 @@ export interface HeadTerminalApi {
      */
     readForTerminal(): Promise<string | null>;
     importPaths(paths: string[]): Promise<string | null>;
+    /** Saves a screenshot held in the clipboard as a PNG and returns its host path. */
+    saveImage(): Promise<string | null>;
     /** Resolves an Electron drop/paste File to a host path in the preload. */
     pathForFile(file: unknown): string;
   };

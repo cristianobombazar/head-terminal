@@ -6,6 +6,7 @@ import { exportDiagnosticBundle } from "../../core/export-diagnostic";
 import { runGhostGlyphDiagnostic } from "../../core/ghost-glyph-diagnostic";
 import { logError } from "../../core/logger";
 import { useSessionStore } from "../../core/session-manager";
+import { toggleBrainstorm } from "../../core/live-brainstorm";
 import { getTerminal } from "../../core/terminal-registry";
 import { isVoiceInputSupported, toggleVoiceInput } from "../../core/voice-input";
 
@@ -130,6 +131,8 @@ export function CommandPalette({
         if (activePaneId) {
           void toggleVoiceInput(activePaneId);
         }
+      } else if (command === "__voice_brainstorm__") {
+        toggleBrainstorm(activePaneId);
       } else if (command === "__export_diagnostic__") {
         void exportDiagnosticBundle();
       } else if (command === "__ghost_diagnostic__") {
