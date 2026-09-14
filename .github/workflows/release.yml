@@ -29,6 +29,19 @@ jobs:
 
       - run: npm ci
 
+      # A tag manda no nome do artefato, entao ela tem que bater com o
+      # package.json, senao o zip anuncia uma versao que o app nao tem.
+      - name: Check tag against package.json
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME#v}"
+          pkg="$(node -p "require('./package.json').version")"
+          [ "$tag" = "$pkg" ] || {
+            echo "tag $tag != package.json $pkg" >&2
+            exit 1
+          }
+
+
       - run: npm run make
 
       # O ZIP do MakerZIP sai com espaco no nome ("Head Terminal-darwin-...").
@@ -39,12 +52,14 @@ jobs:
         run: |
           set -euo pipefail
           version="${GITHUB_REF_NAME#v}"
-          built="$(ls out/make/zip/darwin/${{ matrix.arch }}/*.zip)"
-          asset="out/make/zip/darwin/${{ matrix.arch }}/head-terminal-darwin-${{ matrix.arch }}-${version}.zip"
-          [ "$built" = "$asset" ] || mv "$built" "$asset"
-          shasum -a 256 "$asset" | tee "$asset.sha256"
-          echo "path=$asset" >> "$GITHUB_OUTPUT"
-          echo "sha256=$(shasum -a 256 "$asset" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          dir="out/make/zip/darwin/${{ matrix.arch }}"
+          name="head-terminal-darwin-${{ matrix.arch }}-${version}.zip"
+          built="$(ls "$dir"/*.zip)"
+          [ "$built" = "$dir/$name" ] || mv "$built" "$dir/$name"
+          # O .sha256 guarda so o basename para que `shasum -c` funcione ao lado do zip.
+          (cd "$dir" && shasum -a 256 "$name" > "$name.sha256" && cat "$name.sha256")
+          echo "path=$dir/$name" >> "$GITHUB_OUTPUT"
+          echo "sha256=$(cut -d' ' -f1 "$dir/$name.sha256")" >> "$GITHUB_OUTPUT"
 
       # As duas jobs da matriz correm juntas: a primeira cria a release, a
       # segunda recebe 422 e segue para o upload.

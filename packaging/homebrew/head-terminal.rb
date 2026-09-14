@@ -21,7 +21,7 @@ cask "head-terminal" do
   desc "Terminal desktop para AI coding agents"
   homepage "https://github.com/matheussl22/head-terminal"
 
-  depends_on macos: ">= :big_sur"
+  depends_on macos: :big_sur
 
   app "Head Terminal.app"
 
@@ -29,9 +29,8 @@ cask "head-terminal" do
   # bundle que o Homebrew acabou de colocar em quarentena. Isto so e aceitavel
   # em tap proprio; o homebrew-cask oficial recusa. Remova quando houver
   # Developer ID e notarizacao.
-  postflight do
-    system_command "/usr/bin/xattr",
-                   args: ["-dr", "com.apple.quarantine", "#{appdir}/Head Terminal.app"]
+  postflight_steps do
+    run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{appdir}}/Head Terminal.app"]
   end
 
   zap trash: [
