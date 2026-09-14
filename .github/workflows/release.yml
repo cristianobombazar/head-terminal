@@ -1,0 +1,62 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  macos:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-14
+            arch: arm64
+          - runner: macos-13
+            arch: x64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run make
+
+      # O ZIP do MakerZIP sai com espaco no nome ("Head Terminal-darwin-...").
+      # Renomeia para um asset estavel, sem espaco, que o cask do Homebrew
+      # consegue referenciar sem URL-encoding.
+      - name: Rename artifact and checksum
+        id: asset
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          built="$(ls out/make/zip/darwin/${{ matrix.arch }}/*.zip)"
+          asset="out/make/zip/darwin/${{ matrix.arch }}/head-terminal-darwin-${{ matrix.arch }}-${version}.zip"
+          [ "$built" = "$asset" ] || mv "$built" "$asset"
+          shasum -a 256 "$asset" | tee "$asset.sha256"
+          echo "path=$asset" >> "$GITHUB_OUTPUT"
+          echo "sha256=$(shasum -a 256 "$asset" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+
+      # As duas jobs da matriz correm juntas: a primeira cria a release, a
+      # segunda recebe 422 e segue para o upload.
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --generate-notes || true
+          gh release upload "$GITHUB_REF_NAME" \
+            "${{ steps.asset.outputs.path }}" \
+            "${{ steps.asset.outputs.path }}.sha256" --clobber
+
+      - name: Cask sha256
+        run: echo "${{ matrix.arch }} -> ${{ steps.asset.outputs.sha256 }}" >> "$GITHUB_STEP_SUMMARY"
