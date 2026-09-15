@@ -1,5 +1,5 @@
 import { createReadStream } from "node:fs";
-import { readdir, readFile, stat } from "node:fs/promises";
+import { readdir, readFile, realpath, stat } from "node:fs/promises";
 import { createInterface } from "node:readline";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -55,14 +55,24 @@ function defaultRoots(): AgentSessionRoots {
 /**
  * Two spellings of one directory: Windows tolerates either separator and is
  * case-insensitive on the drive letter, and the CLIs record whichever form
- * they were handed.
+ * they were handed. Windows and macOS (APFS) do not distinguish case at all,
+ * and macOS hands out decomposed Unicode (NFD) from `getcwd()` while the
+ * workspace holds whatever the user typed, usually NFC.
  */
-function samePath(left: string, right: string): boolean {
-  const normalize = (value: string) =>
-    value
+export function samePath(
+  left: string,
+  right: string,
+  platform: NodeJS.Platform = process.platform,
+): boolean {
+  const caseInsensitive = platform === "win32" || platform === "darwin";
+  const normalize = (value: string) => {
+    const spelled = value
+      .normalize("NFC")
       .replaceAll("\\", "/")
       .replace(/\/+$/u, "")
       .replace(/^([A-Za-z]):/u, (_, drive: string) => `${drive.toUpperCase()}:`);
+    return caseInsensitive ? spelled.toLowerCase() : spelled;
+  };
   return normalize(left) === normalize(right);
 }
 
@@ -339,15 +349,27 @@ function firstTextBlock(content: unknown): string | undefined {
  * restart opening a blank conversation instead of resuming.
  */
 function cwdLookupSpellings(cwd: string): string[] {
-  return [...new Set([cwd, cwd.replaceAll("\\", "/")])];
+  // NFC and NFD are the same folder on APFS but encode to different names
+  // once every non-alphanumeric becomes a dash: `ç` is one character in NFC
+  // and `c` + a combining mark in NFD.
+  return [
+    ...new Set([
+      cwd,
+      cwd.replaceAll("\\", "/"),
+      cwd.normalize("NFC"),
+      cwd.normalize("NFD"),
+    ]),
+  ];
 }
 
 export async function resolveEncodedProjectDir(
   root: string,
   cwd: string,
-  encode: (cwd: string) => string,
+  encode: (cwd: string) => string | readonly string[],
 ): Promise<string | null> {
-  const encodings = [...new Set(cwdLookupSpellings(cwd).map(encode))];
+  const encodings = [
+    ...new Set(cwdLookupSpellings(cwd).flatMap((spelling) => encode(spelling))),
+  ];
   for (const encoded of encodings) {
     const dir = await resolveProjectDir(root, encoded);
     if (dir) return dir;
@@ -384,10 +406,27 @@ async function resolveProjectDir(
 
 // --- Claude: ~/.claude/projects/<cwd-encoded>/<sessionId>.jsonl ---
 
-/** `C:\Users\me` -> `C--Users-me`, `/home/dev/my.app` -> `-home-dev-my-app`.
- * The drive colon and the backslash are separators here just like `/` is. */
+/**
+ * `C:\Users\me` -> `C--Users-me`, `/home/dev/my.app` -> `-home-dev-my-app`,
+ * `/Users/me/Meu Projeto` -> `-Users-me-Meu-Projeto`. The CLI turns *every*
+ * character outside `[A-Za-z0-9]` into a dash — separators, dots, the drive
+ * colon, spaces, accents, underscores — and never collapses runs
+ * (`Gravações de Tela` is `Grava--es-de-Tela` on disk).
+ */
 export function encodeClaudeProjectDir(cwd: string): string {
+  return cwd.replace(/[^a-zA-Z0-9]/g, "-");
+}
+
+/** The scheme this app used to guess with: only separators, dots and the
+ * colon became dashes. Kept as a second candidate so a project directory
+ * written by an older CLI (or found by an older build) is still resolved. */
+export function legacyEncodeClaudeProjectDir(cwd: string): string {
   return cwd.replace(/[/\\.:]/g, "-");
+}
+
+/** Every directory name a Claude project for this cwd may have, best first. */
+export function claudeProjectDirCandidates(cwd: string): string[] {
+  return [...new Set([encodeClaudeProjectDir(cwd), legacyEncodeClaudeProjectDir(cwd)])];
 }
 
 interface ClaudeHead {
@@ -451,7 +490,7 @@ async function listClaudeSessions(
   const dir = await resolveEncodedProjectDir(
     root,
     cwd,
-    encodeClaudeProjectDir,
+    claudeProjectDirCandidates,
   );
   if (!dir) return [];
 
@@ -673,9 +712,15 @@ async function listCodexSessions(
     effectiveMs: number;
     createdAt: string;
   }> = [];
+  // Codex records `getcwd()`, which on macOS is the physical path: a project
+  // opened through a symlink (`/tmp/x` is `/private/tmp/x`) only matches once
+  // the pane's own cwd is resolved the same way.
+  const cwdSpellings = [...new Set([cwd, await realpath(cwd).catch(() => cwd)])];
   for (const file of files) {
     const meta = await readCodexSessionMeta(file.path).catch(() => null);
-    if (!meta || !samePath(meta.cwd, cwd)) continue;
+    if (!meta) continue;
+    const recorded = meta.cwd;
+    if (!cwdSpellings.some((spelling) => samePath(recorded, spelling))) continue;
     const indexed = index.get(meta.id);
     // Sort key must match what gets displayed — mixing the index's
     // updated_at with the file's own mtime produces a list that looks
@@ -721,16 +766,20 @@ async function listCodexSessions(
 
 // --- Cursor: ~/.cursor/projects/<cwd-encoded>/agent-transcripts/<chatId>/<chatId>.jsonl ---
 
-/** `C:\Users\me` -> `C-Users-me`, `/home/dev/my.app` -> `home-dev-my-app`.
- * Unlike Claude, Cursor drops the drive colon rather than turning it into
- * another separator. */
-function encodeCursorProjectDir(cwd: string): string {
-  return cwd
-    .split(/[/\\]/u)
-    .filter(Boolean)
-    .join("-")
-    .replaceAll(":", "")
-    .replace(/\./g, "-");
+/**
+ * `C:\Users\me` -> `C-Users-me`, `/home/dev/my.app` -> `home-dev-my-app`,
+ * `documentação` -> `documenta-o`. Cursor also turns every non-alphanumeric
+ * into a dash, but unlike Claude it collapses runs — which is why the drive
+ * colon seems to vanish. Whether the dash a POSIX root would leave at the
+ * front survives is not documented, so both spellings are candidates.
+ */
+export function encodeCursorProjectDir(cwd: string): string {
+  return cwd.replace(/[^a-zA-Z0-9]/g, "-").replace(/-{2,}/g, "-");
+}
+
+export function cursorProjectDirCandidates(cwd: string): string[] {
+  const encoded = encodeCursorProjectDir(cwd);
+  return [...new Set([encoded.replace(/^-/u, ""), encoded])];
 }
 
 async function readCursorTitleSource(filePath: string): Promise<string | null> {
@@ -755,7 +804,7 @@ async function listCursorSessions(
   const projectDir = await resolveEncodedProjectDir(
     cursorProjectsRoot,
     cwd,
-    encodeCursorProjectDir,
+    cursorProjectDirCandidates,
   );
   if (!projectDir) return [];
 

@@ -51,6 +51,10 @@ function parseWindowsBuildNumber(osRelease: string): number | undefined {
 
 const RUN_ID = randomUUID().replaceAll("-", "");
 
+/** System Settings › Privacy & Security › Microphone, as a URL macOS opens. */
+const MAC_MICROPHONE_PRIVACY_PANE =
+  "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone";
+
 if (process.env.HEAD_TERMINAL_USER_DATA) {
   app.setPath("userData", process.env.HEAD_TERMINAL_USER_DATA);
 } else if (!app.isPackaged) {
@@ -115,6 +119,8 @@ if (!gotSingleInstanceLock) {
   let isQuitting = false;
   let shutdownComplete = false;
   let shutdownStarted = false;
+  /** macOS only: ⌘Q was turned into a window close that is still pending. */
+  let quitAfterWindowClose = false;
   let disposeServices: (() => Promise<void>) | null = null;
   let services: IpcServices | null = null;
 
@@ -142,11 +148,16 @@ if (!gotSingleInstanceLock) {
       runId: RUN_ID,
     });
     // On macOS the app outlives its window (closed from the red button, back
-    // from the Dock), and the next window registers the same channels again:
-    // ipcMain refuses a second handler unless the first one is gone.
+    // from the Dock): drop the IPC bindings and the reference, so `activate`
+    // and `second-instance` open a fresh window instead of focusing a ghost.
     window.once("closed", () => {
       unregisterIpc();
       if (mainWindow === window) mainWindow = null;
+      // The window was closed on the way out of ⌘Q; now the quit can proceed.
+      if (quitAfterWindowClose) {
+        quitAfterWindowClose = false;
+        app.quit();
+      }
     });
     loadRenderer(window);
   };
@@ -182,6 +193,24 @@ if (!gotSingleInstanceLock) {
   });
 
   app.on("before-quit", (event) => {
+    // On Windows and Linux a quit only ever follows the window closing, and
+    // closing is where the renderer confirms running agents, reviews
+    // worktrees and flushes the workspace. On macOS ⌘Q arrives with the
+    // window still open, so it is routed through that same close: the window
+    // asks the renderer, and once it is actually gone (`closed` above) the
+    // quit is requested again and lands in the shutdown below. A cancelled
+    // close simply leaves the app running.
+    if (
+      process.platform === "darwin"
+      && !shutdownStarted
+      && mainWindow
+      && !mainWindow.isDestroyed()
+    ) {
+      event.preventDefault();
+      quitAfterWindowClose = true;
+      mainWindow.close();
+      return;
+    }
     isQuitting = true;
     if (shutdownComplete) return;
     event.preventDefault();
@@ -477,7 +506,7 @@ function installContentSecurityPolicy(): void {
   });
   // Everything stays denied except the microphone, and only for the app's own
   // window: voice input records through Chromium because the main process has
-  // no recorder to spawn on Windows. Video is never granted.
+  // no recorder to spawn on Windows or macOS. Video is never granted.
   const isOwnWindow = (contents: Electron.WebContents | null): boolean =>
     contents !== null && BrowserWindow.fromWebContents(contents) !== null;
 
@@ -498,6 +527,14 @@ function installContentSecurityPolicy(): void {
       // silently. The packaged app declares NSMicrophoneUsageDescription in
       // forge.config.ts for this prompt to exist at all.
       if (process.platform === "darwin") {
+        // Once denied, macOS never prompts again and askForMediaAccess just
+        // answers false: the only way back is the Privacy pane, so open it
+        // where the user can flip the switch instead of failing silently.
+        if (systemPreferences.getMediaAccessStatus("microphone") === "denied") {
+          callback(false);
+          void shell.openExternal(MAC_MICROPHONE_PRIVACY_PANE).catch(() => undefined);
+          return;
+        }
         void systemPreferences
           .askForMediaAccess("microphone")
           .then((granted) => callback(granted), () => callback(false));

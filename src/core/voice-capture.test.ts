@@ -54,3 +54,20 @@ describe("voice button visibility", () => {
     expect(isVoiceInputSupported()).toBe(true);
   });
 });
+
+describe("voice on macOS", () => {
+  const MAC_UA =
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) HeadTerminal/0.1.0 Electron/41.6.0";
+
+  it("records in the renderer like Windows, since parecord is Linux-only", async () => {
+    withPlatform(MAC_UA, true);
+    const { recordsInRenderer } = await import("./voice-bridge");
+    expect(recordsInRenderer()).toBe(true);
+    expect(isVoiceInputSupported()).toBe(true);
+  });
+
+  it("hides the button without a media stack", () => {
+    withPlatform(MAC_UA, false);
+    expect(isVoiceInputSupported()).toBe(false);
+  });
+});

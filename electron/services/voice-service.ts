@@ -303,9 +303,10 @@ export class VoiceService {
   }
 
   /**
-   * Transcribes audio the renderer captured itself. On Windows there is no
-   * `parecord` to spawn, so the microphone is read through Chromium's own
-   * media stack and only the encoded bytes cross the IPC boundary.
+   * Transcribes audio the renderer captured itself. On Windows and macOS
+   * there is no `parecord` to spawn, so the microphone is read through
+   * Chromium's own media stack and only the encoded bytes cross the IPC
+   * boundary.
    */
   async transcribeAudio(bytes: Uint8Array, mimeType: string): Promise<string> {
     if (!(bytes instanceof Uint8Array) || bytes.byteLength === 0) {

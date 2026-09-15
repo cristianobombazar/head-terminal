@@ -52,14 +52,23 @@ function loadCustomProfiles(): ClaudeAccountProfile[] {
       return [];
     }
 
-    return parsed.filter(
-      (profile): profile is ClaudeAccountProfile =>
-        typeof profile === "object" &&
-        profile !== null &&
-        typeof (profile as ClaudeAccountProfile).id === "string" &&
-        typeof (profile as ClaudeAccountProfile).name === "string" &&
-        typeof (profile as ClaudeAccountProfile).configDir === "string",
-    );
+    const home = getCachedPlatformInfo()?.homeDir;
+    return parsed
+      .filter(
+        (profile): profile is ClaudeAccountProfile =>
+          typeof profile === "object" &&
+          profile !== null &&
+          typeof (profile as ClaudeAccountProfile).id === "string" &&
+          typeof (profile as ClaudeAccountProfile).name === "string" &&
+          typeof (profile as ClaudeAccountProfile).configDir === "string",
+      )
+      // The directory is always `<home>/.head-terminal/claude-profiles/<id>`,
+      // so it is recomputed from the host's home rather than trusted from
+      // storage: a value written on another machine or platform would send
+      // the pane to a folder that cannot exist here.
+      .map((profile) =>
+        home ? { ...profile, configDir: claudeProfileConfigDir(home, profile.id) } : profile,
+      );
   } catch {
     return [];
   }

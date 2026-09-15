@@ -140,7 +140,8 @@ What is macOS-specific, and how the app handles it:
 | Area | Behaviour |
 |---|---|
 | Shortcuts | Every `Ctrl+…` shortcut in this README is `⌘…` on macOS (`⌘⇧P`, `⌘F`, `⌘\`, `⌘1..9`); labels in the app follow. `Ctrl+Tab` stays on Control, since `⌘Tab` is the system's. `⌘C` / `⌘V` copy and paste in the terminal natively; `⌥` acts as Meta (`⌥B`, `⌥F`, `⌥Enter`). |
-| Function keys | `F2`, `F9`, `F10` and `F11` work as everywhere; on a Mac keyboard hold `Fn` unless *Use F1, F2, etc. keys as standard function keys* is on. |
+| Function keys | `F2`, `F9`, `F10` and `F11` work as everywhere; on a Mac keyboard hold `Fn` unless *Use F1, F2, etc. keys as standard function keys* is on. Mission Control claims `F10` (Application Windows) and `F11` (Show Desktop) by default and the app never sees them while those are on: turn them off in System Settings › Keyboard › Keyboard Shortcuts › Mission Control. |
+| Microphone denied | If the microphone was refused once, macOS never asks again; the next voice attempt opens System Settings › Privacy & Security › Microphone so it can be switched on for Head Terminal. |
 | PATH | An app started from the Finder, the Dock or Spotlight gets launchd's PATH, not the shell's. At startup the app asks the login shell (`$SHELL -ilc`) for its PATH and adopts it, so Homebrew, nvm and `~/.local/bin` installs are found by panes, by the Git context and by the brainstorm agents. |
 | Voice | Recording happens in the renderer through Chromium, as on Windows; the first use shows the system microphone prompt (the `.app` declares `NSMicrophoneUsageDescription`). |
 | Menu | The app installs its own menu bar so `⌘W` does not close the window, `⌘R` does not reload the renderer (and every PTY with it) and `⌘=` / `⌘-` zoom the terminal font instead of the page. |

@@ -118,6 +118,7 @@ function createService(
     env: { PATH: "/usr/bin" },
     resolveWindowsCommand: async () => [],
     killTree: vi.fn(async () => undefined),
+    killGroup: vi.fn(),
     ...options,
   });
   return { service, spawned };

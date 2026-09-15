@@ -4,7 +4,7 @@ import { join } from "node:path";
 import {
   cleanTitleText,
   collectCodexRolloutFiles,
-  encodeClaudeProjectDir,
+  claudeProjectDirCandidates,
   isEnoent,
   readCodexSessionMeta,
   resolveEncodedProjectDir,
@@ -122,7 +122,7 @@ async function resolveClaudeTranscript(
   const root = locator.claudeConfigDir
     ? join(locator.claudeConfigDir, "projects")
     : roots.claudeProjectsRoot;
-  const dir = await resolveEncodedProjectDir(root, locator.cwd, encodeClaudeProjectDir);
+  const dir = await resolveEncodedProjectDir(root, locator.cwd, claudeProjectDirCandidates);
   if (!dir) return null;
   const filePath = join(dir, `${locator.sessionId}.jsonl`);
   try {

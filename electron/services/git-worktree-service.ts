@@ -1,4 +1,4 @@
-import { copyFile, mkdir, stat } from "node:fs/promises";
+import { copyFile, lstat, mkdir, readlink, symlink } from "node:fs/promises";
 import { constants as fsConstants } from "node:fs";
 
 import {
@@ -89,12 +89,36 @@ const MAX_COPIED_FILES = 200;
 /** Teto para o plano não varrer uma lista enorme de terminais abertos. */
 const MAX_PLAN_PROBES = 64;
 
-/** Windows compara caminho sem ligar para caixa; o resto do mundo liga. */
-export function samePath(a: string, b: string): boolean {
-  if (process.platform === "win32") {
+/** Windows e macOS (APFS) comparam caminho sem ligar para caixa; Linux liga. */
+export function samePath(
+  a: string,
+  b: string,
+  platform: NodeJS.Platform = process.platform,
+): boolean {
+  if (platform === "win32" || platform === "darwin") {
     return a.toLowerCase() === b.toLowerCase();
   }
   return a === b;
+}
+
+/** `git worktree add` é um checkout inteiro; `remove` apaga a árvore. Em repo
+ * grande — e no macOS com Spotlight indexando cada arquivo novo — 10 s não
+ * bastam, e um SIGTERM no meio deixa pasta parcial e branch órfã. */
+const WORKTREE_CHECKOUT_TIMEOUT_MS = 120_000;
+
+/** Ruído que o Finder deixa dentro de qualquer pasta que abre (`.DS_Store`) e
+ * que volumes não-APFS ganham por arquivo (`._nome`). Não é trabalho do agent
+ * e não pode ser o que impede a árvore de ser removida. */
+const FINDER_NOISE = /(?:^|\/)(?:\.DS_Store|\._[^/]*)$/u;
+
+/** `isDirty` do `status --porcelain=v1 -b`, ignorando arquivos não rastreados
+ * que são só ruído do sistema. Qualquer coisa rastreada modificada conta. */
+export function hasWorkInProgress(statusStdout: string): boolean {
+  return statusStdout
+    .split(/\r?\n/u)
+    .slice(1)
+    .filter((line) => line.length > 0)
+    .some((line) => !(line.startsWith("?? ") && FINDER_NOISE.test(line.slice(3))));
 }
 
 /** Caminhos aqui são sempre os que o git imprime: absolutos e com barra. */
@@ -255,7 +279,15 @@ async function copyIgnoredConfigFiles(
     const from = `${sourceRoot}/${relative}`;
     const to = `${targetRoot}/${relative}`;
     try {
-      const info = await stat(from);
+      const info = await lstat(from);
+      // Um `.env -> ../shared/.env` tem de continuar link na árvore nova: uma
+      // cópia do conteúdo divergiria em silêncio do repositório principal.
+      if (info.isSymbolicLink()) {
+        await mkdir(parentPath(to), { recursive: true });
+        await symlink(await readlink(from), to);
+        copied += 1;
+        continue;
+      }
       if (!info.isFile() || info.size > MAX_COPIED_FILE_BYTES) {
         continue;
       }
@@ -304,15 +336,10 @@ export async function createSessionWorktree(
         continue;
       }
 
-      await executeGit([
-        "-C",
-        mainRepoRoot,
-        "worktree",
-        "add",
-        path,
-        "-b",
-        branch,
-      ]);
+      await executeGit(
+        ["-C", mainRepoRoot, "worktree", "add", path, "-b", branch],
+        { timeoutMs: WORKTREE_CHECKOUT_TIMEOUT_MS },
+      );
 
       const copiedFiles =
         options.copyIgnored === false
@@ -346,7 +373,8 @@ export async function getWorktreeStatus(path: string): Promise<WorktreeStatus> {
     "--porcelain=v1",
     "-b",
   ]);
-  const { branch, isDirty } = parseStatusShort(statusResult?.stdout ?? "");
+  const { branch } = parseStatusShort(statusResult?.stdout ?? "");
+  const isDirty = hasWorkInProgress(statusResult?.stdout ?? "");
 
   // Commits fora de qualquer remote e de qualquer outra branch local: é o que
   // se perderia de verdade ao apagar a árvore junto com a branch. `--exclude`
@@ -400,14 +428,14 @@ export async function removeSessionWorktree(input: {
   const { mainRepoRoot } = identity;
   const status = await getWorktreeStatus(path);
 
-  await executeGit([
-    "-C",
-    mainRepoRoot,
-    "worktree",
-    "remove",
-    ...(input.force ? ["--force"] : []),
-    path,
-  ]);
+  // `--force` também quando o único pendente é ruído do Finder: sem ele o git
+  // recusa uma árvore com `.DS_Store` não rastreado, que `hasWorkInProgress`
+  // já decidiu que não é trabalho. Trabalho de verdade continua barrando.
+  const force = input.force || !status.isDirty;
+  await executeGit(
+    ["-C", mainRepoRoot, "worktree", "remove", ...(force ? ["--force"] : []), path],
+    { timeoutMs: WORKTREE_CHECKOUT_TIMEOUT_MS },
+  );
 
   const branchMatches =
     input.branch === undefined || input.branch === status.branch;
@@ -443,10 +471,12 @@ export async function planSessionWorktree(input: {
   const candidates = (input.occupiedCwds ?? []).slice(0, MAX_PLAN_PROBES);
   const distinct = [...new Set(candidates)];
   const rootByCwd = new Map<string, string | null>();
+  // Só a raiz da árvore interessa aqui, e ela custa um `git` por pasta em
+  // vez dos dois (ou três) de `resolveRepoIdentity`.
   await Promise.all(
     distinct.map(async (candidate) => {
-      const other = await resolveRepoIdentity(candidate).catch(() => null);
-      rootByCwd.set(candidate, other?.worktreeRoot ?? null);
+      const root = await resolveWorktreeRoot(candidate).catch(() => null);
+      rootByCwd.set(candidate, root);
     }),
   );
 

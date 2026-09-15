@@ -41,13 +41,16 @@ export function validateCwd(cwd: string): string {
   return cwd;
 }
 
-export async function executeGit(args: readonly string[]): Promise<GitResult> {
+export async function executeGit(
+  args: readonly string[],
+  options: { timeoutMs?: number } = {},
+): Promise<GitResult> {
   try {
     // Paths in `args` are POSIX and stay POSIX: in WSL mode this is the git
     // inside the distro, so nothing the user sees needs translating.
     const { stdout, stderr } = await runCommand("git", args, {
       maxBuffer: GIT_MAX_BUFFER,
-      timeoutMs: GIT_TIMEOUT_MS,
+      timeoutMs: options.timeoutMs ?? GIT_TIMEOUT_MS,
     });
     return { stdout: stdout.trim(), stderr: stderr.trim() };
   } catch (error) {

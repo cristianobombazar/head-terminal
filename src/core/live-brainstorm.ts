@@ -419,6 +419,10 @@ interface AudioMeter {
 function createMeter(stream: MediaStream): AudioMeter | null {
   try {
     const context = new AudioContext();
+    // The voice can come back on its own (the result of an analysis), with no
+    // user gesture at that moment; a context created suspended would leave
+    // the orb frozen at zero. Resuming is a no-op when it is already running.
+    void context.resume().catch(() => undefined);
     const meter: AudioMeter = { context, analysers: [], samples: new Uint8Array(256) };
     tapStream(meter, stream);
     return meter;
@@ -997,6 +1001,14 @@ async function openVoice(bs: Brainstorm, options: OpenOptions): Promise<boolean>
   pc.ontrack = (event) => {
     const remote = event.streams[0] ?? new MediaStream([event.track]);
     audio.srcObject = remote;
+    // `autoplay` alone has no promise to fail on. Chromium normally allows
+    // playback while the page captures the microphone, but if the policy
+    // ever blocks it the session would look live with nobody audible.
+    void audio.play().catch((error: unknown) => {
+      logEvent("warn", "brainstorm.audio_blocked", {
+        message: error instanceof Error ? error.message : String(error),
+      });
+    });
     if (connection.meter) tapStream(connection.meter, remote);
   };
   for (const track of stream.getAudioTracks()) pc.addTrack(track, stream);

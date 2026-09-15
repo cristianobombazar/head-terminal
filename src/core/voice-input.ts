@@ -12,6 +12,9 @@ export function beep(freq: number): void {
   try {
     audioCtx ??= new AudioContext();
     const ctx = audioCtx;
+    // Created outside a user gesture (F9 from a global listener, a voice
+    // session that came back on its own) the context may start suspended.
+    if (ctx.state === "suspended") void ctx.resume().catch(() => undefined);
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = "sine";

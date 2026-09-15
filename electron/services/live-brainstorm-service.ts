@@ -39,6 +39,8 @@ const OUTPUT_MAX_BYTES = 8 * 1024 * 1024;
 const STDERR_TAIL_CHARS = 2_000;
 const PROGRESS_MAX_CHARS = 160;
 const MAX_ATTACHMENTS = 8;
+/** How long a cancelled POSIX agent gets to exit on SIGTERM before SIGKILL. */
+const POSIX_KILL_GRACE_MS = 3_000;
 const IMAGE_FILE = /\.(?:png|jpe?g|gif|webp|bmp)$/iu;
 /** `session.input` takes 128 messages and 8 192 tokens; Portuguese runs ~3 chars a token. */
 const HISTORY_MAX_MESSAGES = 120;
@@ -102,7 +104,15 @@ export interface AgentProcess {
 export type SpawnAgent = (
   command: string,
   args: string[],
-  options: { cwd: string; env: NodeJS.ProcessEnv; shell: boolean; windowsHide: true },
+  options: {
+    cwd: string;
+    env: NodeJS.ProcessEnv;
+    shell: boolean;
+    windowsHide: true;
+    /** POSIX: the agent leads its own process group, so cancelling it can
+     * take its children (node, ripgrep, whatever it ran) along. */
+    detached: boolean;
+  },
 ) => AgentProcess;
 
 export interface LiveBrainstormServiceOptions {
@@ -115,6 +125,8 @@ export interface LiveBrainstormServiceOptions {
   /** `where.exe` lookup, injected so tests never search the real PATH. */
   resolveWindowsCommand?: (name: string) => Promise<string[]>;
   killTree?: (pid: number) => Promise<void>;
+  /** Signals a POSIX process group. Injected so tests never signal a real one. */
+  killGroup?: (pid: number, signal: NodeJS.Signals) => void;
   sessionTimeoutMs?: number;
   delegationTimeoutMs?: number;
 }
@@ -675,6 +687,7 @@ export class LiveBrainstormService {
   private readonly env: NodeJS.ProcessEnv;
   private readonly resolveWindowsCommand: (name: string) => Promise<string[]>;
   private readonly killTree: (pid: number) => Promise<void>;
+  private readonly killGroup: (pid: number, signal: NodeJS.Signals) => void;
   private readonly sessionTimeoutMs: number;
   private readonly delegationTimeoutMs: number;
   private readonly running = new Map<string, RunningDelegation>();
@@ -691,6 +704,7 @@ export class LiveBrainstormService {
     this.env = options.env ?? process.env;
     this.resolveWindowsCommand = options.resolveWindowsCommand ?? whereExe;
     this.killTree = options.killTree ?? killWindowsProcessTree;
+    this.killGroup = options.killGroup ?? ((pid, signal) => process.kill(-pid, signal));
     this.sessionTimeoutMs = options.sessionTimeoutMs ?? 20_000;
     this.delegationTimeoutMs = options.delegationTimeoutMs ?? 5 * 60_000;
   }
@@ -1101,6 +1115,7 @@ export class LiveBrainstormService {
           env: run.env,
           shell: run.shell,
           windowsHide: true,
+          detached: this.platform !== "win32",
         });
       } catch (error) {
         reject(new Error(`Não foi possível iniciar o ${label}: ${errorMessage(error)}`));
@@ -1177,11 +1192,28 @@ export class LiveBrainstormService {
       if (this.platform === "win32" && child.pid) {
         // The agent CLIs start their own children (ripgrep, node); kill the tree.
         await this.killTree(child.pid);
-      } else {
-        child.kill("SIGTERM");
+        return;
       }
+      // POSIX: the agent was spawned detached, so its pid is its group. A
+      // cancelled analysis must not leave a `claude` child still editing
+      // files, nor orphan it at quit; the group gets SIGTERM now and SIGKILL
+      // shortly after for anything that traps it.
+      if (child.pid) {
+        const pid = child.pid;
+        this.signalGroup(pid, "SIGTERM");
+        timer(POSIX_KILL_GRACE_MS, () => this.signalGroup(pid, "SIGKILL"));
+      }
+      child.kill("SIGTERM");
     } catch {
       // Already gone.
+    }
+  }
+
+  private signalGroup(pid: number, signal: NodeJS.Signals): void {
+    try {
+      this.killGroup(pid, signal);
+    } catch {
+      // ESRCH: the group already exited.
     }
   }
 }

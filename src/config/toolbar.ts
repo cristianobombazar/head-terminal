@@ -76,7 +76,7 @@ export const PALETTE_ACTIONS: ToolbarCommand[] = [
     id: "export-diagnostic",
     label: "Exportar diagnóstico de inicialização",
     command: "__export_diagnostic__",
-    description: "Salva logs de boot e estado da UI em ~/.local/share/head-terminal/logs/",
+    description: "Salva logs de boot e estado da UI na pasta de logs do app (Diagnóstico mostra o caminho)",
   },
   {
     id: "ghost-diagnostic",

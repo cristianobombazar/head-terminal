@@ -16,6 +16,7 @@ import {
   getSessionActivitySince,
 } from "../../core/activity-utils";
 import { flipAnimate } from "../../core/flip-animate";
+import { samePath } from "../../core/path-utils";
 import { collectPaneIds } from "../../core/session-layout";
 import { useSessionStore } from "../../core/session-manager";
 import { formatShortcut } from "../../core/shortcuts";
@@ -582,7 +583,7 @@ export function SessionSidebar({
             void window.headTerminal.system
               .selectDirectory(session.cwd)
               .then((selected) => {
-                if (typeof selected !== "string" || !selected || selected === session.cwd) {
+                if (typeof selected !== "string" || !selected || samePath(selected, session.cwd)) {
                   return;
                 }
                 if (

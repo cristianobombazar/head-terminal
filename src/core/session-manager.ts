@@ -21,6 +21,7 @@ import {
 } from "./session-persistence";
 import { logEvent } from "./logger";
 import { gitContextsEqual } from "./git-context-utils";
+import { samePath } from "./path-utils";
 import {
   loadRunEverything,
   saveRunEverything,
@@ -497,7 +498,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         return {
           ...rest,
           cwd: trimmed,
-          ...(session.worktree?.path === trimmed
+          ...(session.worktree && samePath(session.worktree.path, trimmed)
             ? { worktree: session.worktree }
             : {}),
           layout: mapPaneNodes(
@@ -526,13 +527,13 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         if (!sessionHasPane(session, paneId)) {
           return session;
         }
-        if (resolvePaneCwd(session, paneId) === trimmed) {
+        if (samePath(resolvePaneCwd(session, paneId), trimmed)) {
           return session;
         }
         changed = true;
         // Back on the session default when that is what was picked, so the
         // pane keeps following the session instead of pinning a copy of it.
-        const own = trimmed === session.cwd ? undefined : trimmed;
+        const own = samePath(trimmed, session.cwd) ? undefined : trimmed;
         return { ...session, layout: setPaneCwdInLayout(session.layout, paneId, own) };
       });
       if (!changed) {

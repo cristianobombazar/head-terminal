@@ -8,10 +8,12 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   createSessionWorktree,
   getWorktreeStatus,
+  hasWorkInProgress,
   listWorktrees,
   planSessionWorktree,
   removeSessionWorktree,
   resolveRepoIdentity,
+  samePath,
 } from "./git-worktree-service";
 
 const cleanup: string[] = [];
@@ -297,5 +299,28 @@ describe("git-worktree-service", () => {
 
     await removeSessionWorktree({ path: worktree.path, force: true });
     expect(await listWorktrees(repo)).toHaveLength(1);
+  });
+});
+
+describe("hasWorkInProgress", () => {
+  const header = "## agent-1";
+
+  it("ignores Finder noise but not real untracked or modified files", () => {
+    expect(hasWorkInProgress(`${header}\n?? .DS_Store\n?? src/.DS_Store\n?? ._notes.md`)).toBe(false);
+    expect(hasWorkInProgress(`${header}\n?? .DS_Store\n?? scratch.txt`)).toBe(true);
+    expect(hasWorkInProgress(`${header}\n M src/index.ts`)).toBe(true);
+    expect(hasWorkInProgress(`${header}\n`)).toBe(false);
+  });
+
+  it("does not mistake a tracked .DS_Store change for noise", () => {
+    expect(hasWorkInProgress(`${header}\n M .DS_Store`)).toBe(true);
+  });
+});
+
+describe("samePath (worktree)", () => {
+  it("folds case on Windows and macOS only", () => {
+    expect(samePath("/Users/x/Repo", "/Users/x/repo", "darwin")).toBe(true);
+    expect(samePath("C:/x/Repo", "c:/x/repo", "win32")).toBe(true);
+    expect(samePath("/home/x/Repo", "/home/x/repo", "linux")).toBe(false);
   });
 });

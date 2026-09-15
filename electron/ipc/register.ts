@@ -561,6 +561,10 @@ export function registerIpc({
   window.webContents.on("before-input-event", onBeforeInput);
 
   const remove = () => {
+    // A window that is already gone must not leave its PTYs behind: on macOS
+    // the app keeps running after its window closes, so a leak here would be
+    // a shell per closed window until quit.
+    if (window.webContents.isDestroyed()) cleanupOwner();
     registeredHandles.forEach((channel) => ipcMain.removeHandler(channel));
     registeredListeners.forEach(([channel, listener]) =>
       ipcMain.removeListener(channel, listener),
