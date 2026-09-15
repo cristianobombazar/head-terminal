@@ -6,18 +6,16 @@ import { WINDOWS_SHELL_COMMAND } from "../config/agents-shared";
 import { createEmptySession } from "./session-manager";
 import { collectPaneIds } from "./session-layout";
 import { basenamePath } from "./path-utils";
-import { isWindowsHost } from "./platform-info";
+import { isMacHost, isWindowsHost } from "./platform-info";
 import type { AgentSession, WorktreeRef } from "../types/session";
 
-/** PowerShell on Windows (resolved by the main process), a login zsh elsewhere. */
+/** PowerShell on Windows (resolved by the main process), a login zsh elsewhere:
+ * Apple ships it at `/bin/zsh`, Linux distributions at `/usr/bin/zsh`. */
 function getFallbackShell(): string {
   if (isWindowsHost()) {
     return WINDOWS_SHELL_COMMAND;
   }
-  const platform = typeof navigator === "undefined"
-    ? process.platform
-    : navigator.platform;
-  return /mac/i.test(platform) ? "/bin/zsh" : "/usr/bin/zsh";
+  return isMacHost() ? "/bin/zsh" : "/usr/bin/zsh";
 }
 
 async function resolveHomeDocumentsDir(): Promise<string> {

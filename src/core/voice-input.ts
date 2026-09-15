@@ -2,6 +2,7 @@ import { sendTextToPane } from "../actions/sendAgentCommand";
 import { logEvent } from "./logger";
 import { useSessionStore } from "./session-manager";
 import { hasOpenAiApiKey } from "./openai-credentials";
+import { isLinuxHost } from "./platform-info";
 import { startVoiceRecording, stopAndTranscribeVoice } from "./voice-bridge";
 import { isCaptureSupported } from "./voice-capture";
 
@@ -27,12 +28,13 @@ export function beep(freq: number): void {
 }
 
 /**
- * Recording goes through `parecord`, which is PulseAudio and does not exist on
- * Windows — there the renderer captures the microphone itself. The button is
- * shown only where one of the two routes actually leads somewhere.
+ * Recording goes through `parecord` on Linux, which is PulseAudio and exists
+ * nowhere else — on Windows and macOS the renderer captures the microphone
+ * itself. The button is shown only where one of the two routes actually
+ * leads somewhere.
  */
 export function isVoiceInputSupported(): boolean {
-  return /Windows/u.test(navigator.userAgent) ? isCaptureSupported() : true;
+  return isLinuxHost() ? true : isCaptureSupported();
 }
 
 export function isVoiceInputBlocked(paneId: string): boolean {

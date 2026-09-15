@@ -15,19 +15,35 @@ const WINDOWS_ICON_URL = `file:///${path
   .resolve(__dirname, "assets/icons/icon.ico")
   .replaceAll("\\", "/")}`;
 
+// node-pty publica prebuilds N-API para win32-<arch> e darwin-<arch>, e o
+// módulo os carrega direto de prebuilds/<platform>-<arch>: recompilar exigiria
+// MSVC/Xcode sem ganho nenhum. Linux não tem prebuild e continua compilando.
+const HAS_NODE_PTY_PREBUILD =
+  process.platform === "win32" || process.platform === "darwin";
+
 const config: ForgeConfig = {
   packagerConfig: {
-    asar: true,
+    // Em POSIX o node-pty inicia cada pane por um binário auxiliar,
+    // `spawn-helper`, que fica ao lado do `.node`. O AutoUnpackNativesPlugin
+    // só tira do ASAR o que termina em `.node`; um executável dentro do
+    // arquivo não pode ser `exec`ado, e o pane morre com "posix_spawn failed".
+    // No Windows não existe o arquivo, e o glob não muda nada lá.
+    asar: process.platform === "win32" ? true : { unpack: "**/spawn-helper" },
     appBundleId: "com.matheus.head-terminal",
     appCategoryType: "public.app-category.developer-tools",
     appCopyright: "Copyright © 2026 Matheus",
     executableName: "head-terminal",
     icon: "assets/icons/icon",
+    darwinDarkModeSupport: true,
+    // Info.plist do .app. Sem a descrição de uso o macOS mata o processo na
+    // primeira tentativa de abrir o microfone (ditado F9, brainstorm F10) em
+    // vez de perguntar ao usuário.
+    extendInfo: {
+      NSMicrophoneUsageDescription:
+        "O Head Terminal usa o microfone para o ditado por voz e para o brainstorm por voz com os agentes.",
+    },
   },
-  // No Windows o node-pty carrega os prebuilds N-API que ele mesmo publica em
-  // prebuilds/win32-<arch>, então recompilar exigiria MSVC sem ganho nenhum.
-  // Linux não tem prebuild publicado e continua compilando normalmente.
-  rebuildConfig: process.platform === "win32" ? { onlyModules: [] } : {},
+  rebuildConfig: HAS_NODE_PTY_PREBUILD ? { onlyModules: [] } : {},
   makers: [
     new MakerZIP({}, ["darwin"]),
     new MakerSquirrel(

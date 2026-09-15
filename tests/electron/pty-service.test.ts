@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  descendantsFromProcessTable,
   PtyService,
   type Disposable,
   type NodePtySpawnOptions,
@@ -494,5 +495,27 @@ describe("PtyService on Windows", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("descendantsFromProcessTable", () => {
+  it("walks a ps pid/ppid table deepest-first from the pane shell", () => {
+    const table = [
+      "    1     0",
+      "  100     1", // the pane shell
+      "  200   100", // node started by the shell
+      "  300   200", // ripgrep started by node
+      "  201   100", // a background job
+      "  999     1", // unrelated
+      "garbage line",
+    ].join("\n");
+    const found = descendantsFromProcessTable(table, 100);
+    expect(found).toEqual([300, 200, 201]);
+    expect(descendantsFromProcessTable(table, 999)).toEqual([]);
+  });
+
+  it("survives a cycle in the table", () => {
+    const table = "10 20\n20 10";
+    expect(descendantsFromProcessTable(table, 10)).toEqual([20]);
   });
 });

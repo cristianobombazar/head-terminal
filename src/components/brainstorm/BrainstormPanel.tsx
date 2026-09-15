@@ -2,6 +2,7 @@ import { memo, useCallback, useEffect, useRef, useState, type DragEvent } from "
 
 import { BRAINSTORM_END_SHORTCUT, BRAINSTORM_SHORTCUT } from "../../config/toolbar";
 import { formatTranscript, type BrainstormTurn } from "../../core/brainstorm-transcript";
+import { formatShortcut } from "../../core/shortcuts";
 import {
   attachBrainstormClipboardImage,
   attachBrainstormImage,
@@ -441,7 +442,7 @@ function BrainstormSheet({ phase, mood, onOpened, onMinimize, onClosed }: Brains
               type="button"
               className="brainstorm-panel__button"
               onClick={() => void attachBrainstormClipboardImage()}
-              title="Anexar a imagem da área de transferência (Ctrl+V no painel)"
+              title={`Anexar a imagem da área de transferência (${formatShortcut("Ctrl+V")} no painel)`}
             >
               Imagem
             </button>
@@ -568,7 +569,7 @@ function BrainstormSheet({ phase, mood, onOpened, onMinimize, onClosed }: Brains
         {status === "paused"
           ? `${BRAINSTORM_SHORTCUT} retoma a voz · ${BRAINSTORM_END_SHORTCUT} ou X encerra · a voz volta sozinha com o resultado`
           : inProgress
-            ? `${BRAINSTORM_SHORTCUT} pausa · ${BRAINSTORM_END_SHORTCUT} encerra · Ctrl+V ou arrastar anexa imagem`
+            ? `${BRAINSTORM_SHORTCUT} pausa · ${BRAINSTORM_END_SHORTCUT} encerra · ${formatShortcut("Ctrl+V")} ou arrastar anexa imagem`
             : `${BRAINSTORM_SHORTCUT} abre outra conversa`}
       </footer>
     </aside>

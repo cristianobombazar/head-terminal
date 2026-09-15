@@ -41,7 +41,11 @@ LOG_DIR="$(ensure_log_dir)"
 LOG_FILE="$LOG_DIR/prod.log"
 export HEAD_TERMINAL_CHANNEL="prod"
 
-mapfile -t KEYRING_ARGS < <(keyring_fallback_args)
+# Sem mapfile: o bash 3.2 do macOS não tem. Um argumento por linha.
+KEYRING_ARGS=()
+while IFS= read -r keyring_arg; do
+  [[ -n "$keyring_arg" ]] && KEYRING_ARGS+=("$keyring_arg")
+done < <(keyring_fallback_args)
 
-echo "----- $(date -Is) electron:prod bin=$RELEASE_BINARY DISPLAY=${DISPLAY:-wayland} keyring=${KEYRING_ARGS[*]:-ok} -----" >>"$LOG_FILE"
-exec "$RELEASE_BINARY" "${RELEASE_ARGS[@]}" "${KEYRING_ARGS[@]}" >>"$LOG_FILE" 2>&1
+echo "----- $(date '+%Y-%m-%dT%H:%M:%S%z') electron:prod bin=$RELEASE_BINARY DISPLAY=${DISPLAY:-wayland} keyring=${KEYRING_ARGS[*]:-ok} -----" >>"$LOG_FILE"
+exec "$RELEASE_BINARY" ${RELEASE_ARGS[@]+"${RELEASE_ARGS[@]}"} ${KEYRING_ARGS[@]+"${KEYRING_ARGS[@]}"} >>"$LOG_FILE" 2>&1

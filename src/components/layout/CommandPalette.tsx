@@ -6,6 +6,7 @@ import { exportDiagnosticBundle } from "../../core/export-diagnostic";
 import { runGhostGlyphDiagnostic } from "../../core/ghost-glyph-diagnostic";
 import { logError } from "../../core/logger";
 import { useSessionStore } from "../../core/session-manager";
+import { formatShortcut } from "../../core/shortcuts";
 import { closePaneWithWorktreeReview } from "../../core/worktree";
 import { toggleBrainstorm } from "../../core/live-brainstorm";
 import { getTerminal } from "../../core/terminal-registry";
@@ -244,7 +245,7 @@ export function CommandPalette({
                 <span className="command-palette__label">{action.label}</span>
                 {action.shortcut && (
                   <span className="command-palette__shortcut">
-                    {action.shortcut}
+                    {formatShortcut(action.shortcut)}
                   </span>
                 )}
                 {action.description && (

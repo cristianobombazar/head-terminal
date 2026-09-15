@@ -18,6 +18,7 @@ import {
 import { flipAnimate } from "../../core/flip-animate";
 import { collectPaneIds } from "../../core/session-layout";
 import { useSessionStore } from "../../core/session-manager";
+import { formatShortcut } from "../../core/shortcuts";
 import {
   closeSessionWithWorktreeReview,
   isolateSessionInWorktree,
@@ -493,7 +494,7 @@ export function SessionSidebar({
             <button
               type="button"
               className="session-sidebar__new"
-              title="Nova sessão (Ctrl+Shift+N)"
+              title={`Nova sessão (${formatShortcut("Ctrl+Shift+N")})`}
               onClick={onCreateSession}
             >
               <IconPlus size={12} />
@@ -551,7 +552,7 @@ export function SessionSidebar({
           <button
             type="button"
             className="session-sidebar__compact-new"
-            title="Nova sessão (Ctrl+Shift+N)"
+            title={`Nova sessão (${formatShortcut("Ctrl+Shift+N")})`}
             aria-label="Nova sessão"
             onClick={onCreateSession}
           >

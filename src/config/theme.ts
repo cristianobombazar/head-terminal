@@ -1,7 +1,7 @@
 import type { ITerminalOptions, ITheme } from "@xterm/xterm";
 
 import { loadFontSize } from "../core/ui-preferences";
-import { getCachedPlatformInfo } from "../core/platform-info";
+import { getCachedPlatformInfo, isMacHost } from "../core/platform-info";
 
 // Graphite terminal: near-black ground, soft white text, amber cursor. ANSI
 // colors are tuned to read on #0b0c0e without going neon — the chrome around
@@ -132,5 +132,9 @@ export function createTerminalOptions(): ITerminalOptions {
     minimumContrastRatio: 4.5,
     theme: createXtermTheme(),
     windowsPty: resolveWindowsPty(),
+    // On a Mac keyboard Option is the only Meta there is: without this,
+    // ⌥B / ⌥F / ⌥Enter type accented characters into the shell instead of
+    // the word-jump and newline escapes the agents and readline expect.
+    macOptionIsMeta: isMacHost(),
   };
 }

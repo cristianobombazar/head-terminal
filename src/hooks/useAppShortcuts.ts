@@ -5,6 +5,7 @@ import { fitPanes } from "../core/pane-fit-registry";
 import { useSessionStore } from "../core/session-manager";
 import { closePaneWithWorktreeReview } from "../core/worktree";
 import { notifySessionAttention } from "../core/notifications";
+import { hasPrimaryModifier } from "../core/shortcuts";
 import { forEachTerminal } from "../core/terminal-registry";
 import {
   loadFontSize,
@@ -84,14 +85,17 @@ export function useKeyboardShortcuts(options: {
       const isInput =
         target instanceof HTMLInputElement ||
         target instanceof HTMLTextAreaElement;
+      // Ctrl on Windows/Linux, ⌘ on macOS. Only Ctrl+Tab below stays on
+      // Control everywhere: ⌘Tab is the system's app switcher.
+      const mod = hasPrimaryModifier(event);
 
-      if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === "p") {
+      if (mod && event.shiftKey && event.key.toLowerCase() === "p") {
         event.preventDefault();
         options.onCommandPalette();
         return;
       }
 
-      if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === "n") {
+      if (mod && event.shiftKey && event.key.toLowerCase() === "n") {
         event.preventDefault();
         options.onCreateSession();
         return;
@@ -112,13 +116,13 @@ export function useKeyboardShortcuts(options: {
         return;
       }
 
-      if (!isInput && event.ctrlKey && event.key.toLowerCase() === "f") {
+      if (!isInput && mod && event.key.toLowerCase() === "f") {
         event.preventDefault();
         options.onSearch();
         return;
       }
 
-      if (!isInput && event.ctrlKey && (event.key === "=" || event.key === "+")) {
+      if (!isInput && mod && (event.key === "=" || event.key === "+")) {
         event.preventDefault();
         const next = loadFontSize() + 1;
         saveFontSize(next);
@@ -132,7 +136,7 @@ export function useKeyboardShortcuts(options: {
         return;
       }
 
-      if (!isInput && event.ctrlKey && event.key === "-") {
+      if (!isInput && mod && event.key === "-") {
         event.preventDefault();
         const next = loadFontSize() - 1;
         saveFontSize(next);
@@ -143,7 +147,7 @@ export function useKeyboardShortcuts(options: {
         return;
       }
 
-      if (!isInput && event.ctrlKey && event.key === "0") {
+      if (!isInput && mod && event.key === "0") {
         event.preventDefault();
         saveFontSize(12);
         forEachTerminal((_paneId, handle) => {
@@ -157,7 +161,7 @@ export function useKeyboardShortcuts(options: {
         options.onCloseSearch();
       }
 
-      if (!isInput && event.ctrlKey && event.key === "\\") {
+      if (!isInput && mod && event.key === "\\") {
         event.preventDefault();
         if (event.shiftKey) {
           splitActivePane("horizontal");
@@ -169,7 +173,7 @@ export function useKeyboardShortcuts(options: {
 
       if (
         !isInput &&
-        event.ctrlKey &&
+        mod &&
         event.shiftKey &&
         event.key.toLowerCase() === "z"
       ) {
@@ -180,7 +184,7 @@ export function useKeyboardShortcuts(options: {
 
       if (
         !isInput &&
-        event.ctrlKey &&
+        mod &&
         event.shiftKey &&
         event.key.toLowerCase() === "w"
       ) {
@@ -191,11 +195,11 @@ export function useKeyboardShortcuts(options: {
         return;
       }
 
-      if (isInput || !event.ctrlKey || event.metaKey) {
+      if (isInput) {
         return;
       }
 
-      if (event.key === "Tab") {
+      if (event.key === "Tab" && event.ctrlKey && !event.metaKey) {
         event.preventDefault();
         if (sessions.length < 2) {
           return;
@@ -208,6 +212,10 @@ export function useKeyboardShortcuts(options: {
         const nextIndex =
           (currentIndex + delta + sessions.length) % sessions.length;
         setActiveSessionId(sessions[nextIndex].id);
+        return;
+      }
+
+      if (!mod || (event.ctrlKey && event.metaKey)) {
         return;
       }
 

@@ -111,17 +111,48 @@ Known differences on Windows:
 
 | Area | Behaviour |
 |---|---|
-| Voice | Recording depends on `parecord`; the button is hidden until capture moves into the renderer. |
+| Voice | Recording happens in the renderer through Chromium (`MediaRecorder`), since there is no `parecord` to spawn. |
 | Shell | The pane shell is PowerShell; agent profiles are PowerShell scripts (`-EncodedCommand`), the `zsh` profiles are Linux/macOS only. A *Shell* session can instead open a WSL distribution (`wsl.exe -d <distro>`, picked in the new-session dialog), starting in the session folder under `/mnt/<drive>`. |
 | Installer | `npm run make` produces a Squirrel installer. Code signing is still pending, as is macOS notarization. |
 
 ### macOS
 
-```bash
-xcode-select --install
-```
+The application runs natively on macOS, Apple Silicon and Intel alike, with the
+same window, sidebar, panes, Git context, worktrees, voice and brainstorm as on
+Windows. Each pane is a login `zsh` (`/bin/zsh`), the agents are the same
+`zsh` profiles Linux uses, and data lives in `~/.head-terminal`.
 
-Development and the ZIP package are supported. Public distribution still requires setting up signing, hardened runtime, entitlements and notarization. Voice capture currently uses `parecord`, so voice on macOS still needs a native backend of its own before it can be considered supported.
+Requirements:
+
+- macOS 12 or later (what Electron 41 supports);
+- Node.js 20 and npm;
+- `git` (the Command Line Tools install it: `xcode-select --install`);
+- the agent CLIs: `curl -fsSL https://claude.ai/install.sh | bash`, `curl
+  https://cursor.com/install -fsS | bash`, `npm i -g @openai/codex` or
+  `brew install codex`. Missing ones are offered for installation on first start.
+
+No C++ toolchain is needed for `node-pty`: it publishes N-API prebuilds for
+`darwin-arm64` and `darwin-x64`, and `rebuildConfig` skips the native rebuild
+the same way it does on Windows.
+
+What is macOS-specific, and how the app handles it:
+
+| Area | Behaviour |
+|---|---|
+| Shortcuts | Every `Ctrl+…` shortcut in this README is `⌘…` on macOS (`⌘⇧P`, `⌘F`, `⌘\`, `⌘1..9`); labels in the app follow. `Ctrl+Tab` stays on Control, since `⌘Tab` is the system's. `⌘C` / `⌘V` copy and paste in the terminal natively; `⌥` acts as Meta (`⌥B`, `⌥F`, `⌥Enter`). |
+| Function keys | `F2`, `F9`, `F10` and `F11` work as everywhere; on a Mac keyboard hold `Fn` unless *Use F1, F2, etc. keys as standard function keys* is on. |
+| PATH | An app started from the Finder, the Dock or Spotlight gets launchd's PATH, not the shell's. At startup the app asks the login shell (`$SHELL -ilc`) for its PATH and adopts it, so Homebrew, nvm and `~/.local/bin` installs are found by panes, by the Git context and by the brainstorm agents. |
+| Voice | Recording happens in the renderer through Chromium, as on Windows; the first use shows the system microphone prompt (the `.app` declares `NSMicrophoneUsageDescription`). |
+| Menu | The app installs its own menu bar so `⌘W` does not close the window, `⌘R` does not reload the renderer (and every PTY with it) and `⌘=` / `⌘-` zoom the terminal font instead of the page. |
+| Window | Closing the window keeps the app in the Dock, as macOS expects; clicking the Dock icon opens a new window and the workspace comes back. `⌘Q` quits. |
+| Packaging | `spawn-helper`, the binary `node-pty` uses to start each pane, is kept outside the ASAR archive so it can be executed. |
+
+`npm run package` produces `out/Head Terminal-darwin-<arch>/Head Terminal.app`
+and `npm run make` a ZIP of it. The bundle is not signed or notarized, so a
+copy downloaded from elsewhere is quarantined by Gatekeeper: run it from the
+machine that built it, or clear the flag with `xattr -dr com.apple.quarantine
+"Head Terminal.app"`. Public distribution still requires signing, hardened
+runtime, entitlements and notarization.
 
 ## Commands
 
@@ -144,6 +175,8 @@ Runtime and packaging are Electron only; the Tauri/Rust backend was removed. The
 
 The launchers below and the X11 smoke test are Linux only. On Windows the app
 is started by the installed shortcut, or by `npm run dev` during development.
+On macOS use `npm run dev`, or the `.app` from `npm run package`;
+`npm run start:prod` also finds that bundle.
 
 ## Linux launchers
 
@@ -181,7 +214,8 @@ sudo apt install ./out/make/deb/x64/head-terminal_*.deb
 | `Ctrl+1..9` | select session |
 | `Ctrl+Shift+L` | `/clear` in the active terminal or in all of them |
 
-The `Split ↓` and `Split →` buttons split the active pane. “Run everything” sends toolbar commands to every pane in the session.
+On macOS `Ctrl` reads as `⌘` in every row except `Ctrl+Tab`, and the app shows
+the shortcuts that way (`⌘⇧P`). The `Split ↓` and `Split →` buttons split the active pane. “Run everything” sends toolbar commands to every pane in the session.
 
 ## Several agents on one repository
 

@@ -7,14 +7,18 @@ import {
   app,
   BrowserWindow,
   dialog,
+  Menu,
   safeStorage,
   session,
   shell,
+  systemPreferences,
   webContents,
 } from "electron";
 
 import { IPC_CHANNELS } from "./ipc/channels";
 import { registerIpc, type IpcServices } from "./ipc/register";
+import { buildMacApplicationMenu } from "./mac-menu";
+import { adoptLoginShellPath } from "./services/shell-env";
 import {
   listResumableSessions,
   resolveAgentSessionRoots,
@@ -129,14 +133,22 @@ if (!gotSingleInstanceLock) {
 
   const openMainWindow = () => {
     if (!services) return;
-    mainWindow = createMainWindow();
-    registerIpc({
-      window: mainWindow,
+    const window = createMainWindow();
+    mainWindow = window;
+    const unregisterIpc = registerIpc({
+      window,
       services,
       isQuitting: () => isQuitting,
       runId: RUN_ID,
     });
-    loadRenderer(mainWindow);
+    // On macOS the app outlives its window (closed from the red button, back
+    // from the Dock), and the next window registers the same channels again:
+    // ipcMain refuses a second handler unless the first one is gone.
+    window.once("closed", () => {
+      unregisterIpc();
+      if (mainWindow === window) mainWindow = null;
+    });
+    loadRenderer(window);
   };
 
   // ponytail: processo pode sobreviver sem janela; reabre em vez de ignorar o clique
@@ -146,6 +158,14 @@ if (!gotSingleInstanceLock) {
   });
 
   void app.whenReady().then(async () => {
+    if (process.platform === "darwin") {
+      Menu.setApplicationMenu(
+        buildMacApplicationMenu({ appName: app.name, development: !app.isPackaged }),
+      );
+      // Before any service spawns a CLI or a pane inherits process.env: a
+      // Finder/Dock launch carries launchd's PATH, not the user's shell's.
+      await adoptLoginShellPath();
+    }
     installContentSecurityPolicy();
     const initialized = await createServices();
     services = initialized.services;
@@ -468,7 +488,22 @@ function installContentSecurityPolicy(): void {
         return;
       }
       const { mediaTypes } = details as Electron.MediaAccessPermissionRequest;
-      callback((mediaTypes ?? ["audio"]).every((type) => type === "audio"));
+      const audioOnly = (mediaTypes ?? ["audio"]).every((type) => type === "audio");
+      if (!audioOnly) {
+        callback(false);
+        return;
+      }
+      // macOS gates the microphone behind TCC: the system prompt has to be
+      // answered before Chromium may open the device, or capture fails
+      // silently. The packaged app declares NSMicrophoneUsageDescription in
+      // forge.config.ts for this prompt to exist at all.
+      if (process.platform === "darwin") {
+        void systemPreferences
+          .askForMediaAccess("microphone")
+          .then((granted) => callback(granted), () => callback(false));
+        return;
+      }
+      callback(true);
     },
   );
   session.defaultSession.setPermissionCheckHandler(

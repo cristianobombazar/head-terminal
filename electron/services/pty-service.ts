@@ -1,4 +1,5 @@
 import { createRequire } from "node:module";
+import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 
@@ -270,6 +271,51 @@ function linuxDescendants(pid: number, seen = new Set<number>()): number[] {
   }
 }
 
+/** Deepest-first descendants from a `pid ppid` table (`ps -eo pid=,ppid=`). */
+export function descendantsFromProcessTable(table: string, root: number): number[] {
+  const childrenOf = new Map<number, number[]>();
+  for (const line of table.split(/\r?\n/u)) {
+    const [pidText, ppidText] = line.trim().split(/\s+/u);
+    const pid = Number(pidText);
+    const ppid = Number(ppidText);
+    if (!Number.isSafeInteger(pid) || !Number.isSafeInteger(ppid) || pid <= 0) continue;
+    const siblings = childrenOf.get(ppid);
+    if (siblings) siblings.push(pid);
+    else childrenOf.set(ppid, [pid]);
+  }
+  const seen = new Set<number>([root]);
+  const walk = (pid: number): number[] =>
+    (childrenOf.get(pid) ?? []).flatMap((child) => {
+      if (seen.has(child)) return [];
+      seen.add(child);
+      return [...walk(child), child];
+    });
+  return walk(root);
+}
+
+/**
+ * macOS has no /proc; `ps` is the portable way to see who descends from the
+ * pane's shell. Synchronous on purpose: this runs while a pane is closing,
+ * and the parent must still be alive for its children to be found under it.
+ */
+function darwinDescendants(pid: number): number[] {
+  if (process.platform !== "darwin") return [];
+  try {
+    const table = execFileSync("ps", ["-eo", "pid=,ppid="], {
+      encoding: "utf8",
+      timeout: 2_000,
+      maxBuffer: 4 * 1024 * 1024,
+    });
+    return descendantsFromProcessTable(table, pid);
+  } catch {
+    return [];
+  }
+}
+
+function posixDescendants(pid: number): number[] {
+  return process.platform === "darwin" ? darwinDescendants(pid) : linuxDescendants(pid);
+}
+
 /**
  * Owns all main-process PTYs and enforces WebContents-level isolation.
  *
@@ -529,7 +575,7 @@ export class PtyService {
         // Interactive shells put background jobs in their own process group,
         // so the shell group alone is insufficient. Snapshot descendants
         // before killing the parent and signal deepest children first.
-        descendantPids = linuxDescendants(entry.process.pid);
+        descendantPids = posixDescendants(entry.process.pid);
         for (const childPid of descendantPids) {
           try {
             process.kill(childPid, "SIGTERM");

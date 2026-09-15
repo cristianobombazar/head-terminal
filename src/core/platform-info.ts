@@ -42,6 +42,27 @@ export function isWindowsHost(): boolean {
   return cached?.platform === "win32";
 }
 
+/**
+ * macOS host. Decides the ⌘-vs-Ctrl question for every app shortcut, which
+ * the very first keydown may ask before the platform fetch has settled, so
+ * until then the answer comes from the user agent the same way Chromium
+ * itself tells the two apart.
+ */
+export function isMacHost(): boolean {
+  if (cached) {
+    return cached.platform === "darwin";
+  }
+  return typeof navigator !== "undefined" && /mac/iu.test(navigator.platform);
+}
+
+/** Linux host — the only one where the main process records voice itself. */
+export function isLinuxHost(): boolean {
+  if (cached) {
+    return cached.platform === "linux";
+  }
+  return typeof navigator !== "undefined" && /linux/iu.test(navigator.userAgent);
+}
+
 /** Test seam. */
 export function setCachedPlatformInfoForTests(info: PlatformInfo | null): void {
   cached = info;

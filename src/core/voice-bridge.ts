@@ -1,3 +1,4 @@
+import { isLinuxHost } from "./platform-info";
 import {
   cancelCapture,
   isCaptureSupported,
@@ -7,12 +8,13 @@ import {
 
 /**
  * Two ways to reach a microphone. The main process spawns `parecord`, which is
- * PulseAudio: on Windows there is nothing to spawn, so Chromium records in the
- * renderer instead. The choice is made here so callers never learn about it.
- * macOS keeps the existing path, untouched and untested from here.
+ * PulseAudio and exists on Linux alone: on Windows and macOS there is nothing
+ * to spawn, so Chromium records in the renderer instead (macOS asks for the
+ * microphone through the system prompt the first time). The choice is made
+ * here so callers never learn about it.
  */
-function recordsInRenderer(): boolean {
-  return /Windows/u.test(navigator.userAgent) && isCaptureSupported();
+export function recordsInRenderer(): boolean {
+  return !isLinuxHost() && isCaptureSupported();
 }
 
 export async function startVoiceRecording(): Promise<void> {

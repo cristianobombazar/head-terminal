@@ -20,6 +20,7 @@ import {
 import { NEW_CONVERSATION_LABEL } from "../../core/conversation-display";
 import { collectPaneIds, findPaneNode } from "../../core/session-layout";
 import { basenamePath } from "../../core/path-utils";
+import { formatShortcut } from "../../core/shortcuts";
 import { isolatePaneInWorktree } from "../../core/worktree";
 import { usePaneConversation } from "../../hooks/usePaneConversation";
 import { GitBranchBadge } from "../ui/GitBranchBadge";
@@ -506,8 +507,8 @@ export function TerminalPaneHeader({
             }
             title={
               isMaximized
-                ? "Restaurar os outros terminais (Ctrl+Shift+Z)"
-                : "Expandir: só este terminal na área da sessão (Ctrl+Shift+Z)"
+                ? `Restaurar os outros terminais (${formatShortcut("Ctrl+Shift+Z")})`
+                : `Expandir: só este terminal na área da sessão (${formatShortcut("Ctrl+Shift+Z")})`
             }
             aria-label={
               isMaximized
@@ -527,7 +528,7 @@ export function TerminalPaneHeader({
         <button
           type="button"
           className="terminal-pane-header__action"
-          title="Dividir abaixo (Ctrl+\)"
+          title={`Dividir abaixo (${formatShortcut("Ctrl+\\")})`}
           aria-label="Dividir verticalmente"
           onClick={(event) => {
             event.stopPropagation();
@@ -540,7 +541,7 @@ export function TerminalPaneHeader({
         <button
           type="button"
           className="terminal-pane-header__action"
-          title="Dividir ao lado (Ctrl+Shift+\)"
+          title={`Dividir ao lado (${formatShortcut("Ctrl+Shift+\\")})`}
           aria-label="Dividir horizontalmente"
           onClick={(event) => {
             event.stopPropagation();

@@ -13,6 +13,7 @@ import {
   workspaceFromStore,
 } from "../../core/session-persistence";
 import { useSessionStore } from "../../core/session-manager";
+import { matchesShortcut } from "../../core/shortcuts";
 import { getTerminal } from "../../core/terminal-registry";
 import {
   useActivityNotifications,
@@ -30,23 +31,6 @@ interface AppShellProps {
   sessions: AgentSession[];
   activeSessionId: string | null;
   onCreateSession: () => void;
-}
-
-function matchesShortcut(event: KeyboardEvent, shortcut: string): boolean {
-  const parts = shortcut.split("+").map((part) => part.trim().toLowerCase());
-  const key = parts[parts.length - 1];
-  const needsCtrl = parts.includes("ctrl");
-  const needsShift = parts.includes("shift");
-  const needsAlt = parts.includes("alt") || parts.includes("option");
-  const needsMeta = parts.includes("cmd") || parts.includes("meta");
-
-  return (
-    event.key.toLowerCase() === key &&
-    event.ctrlKey === needsCtrl &&
-    event.shiftKey === needsShift &&
-    event.altKey === needsAlt &&
-    event.metaKey === needsMeta
-  );
 }
 
 export function AppShell({
