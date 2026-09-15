@@ -29,7 +29,7 @@ function emptyContext(): GitContextPayload {
   };
 }
 
-function validateCwd(cwd: string): string {
+export function validateCwd(cwd: string): string {
   if (
     typeof cwd !== "string" ||
     cwd.trim().length === 0 ||
@@ -41,7 +41,7 @@ function validateCwd(cwd: string): string {
   return cwd;
 }
 
-async function executeGit(args: readonly string[]): Promise<GitResult> {
+export async function executeGit(args: readonly string[]): Promise<GitResult> {
   try {
     // Paths in `args` are POSIX and stay POSIX: in WSL mode this is the git
     // inside the distro, so nothing the user sees needs translating.
@@ -56,7 +56,7 @@ async function executeGit(args: readonly string[]): Promise<GitResult> {
   }
 }
 
-async function tryGit(args: readonly string[]): Promise<GitResult | null> {
+export async function tryGit(args: readonly string[]): Promise<GitResult | null> {
   try {
     return await executeGit(args);
   } catch {
@@ -74,7 +74,7 @@ async function resolveRepoRoot(cwd: string): Promise<string | null> {
   return result?.stdout || null;
 }
 
-function parseStatusShort(stdout: string): {
+export function parseStatusShort(stdout: string): {
   branch: string | null;
   isDirty: boolean;
 } {
@@ -158,7 +158,7 @@ export async function getSessionDiff(cwd: string): Promise<string> {
   return result;
 }
 
-async function exists(path: string): Promise<boolean> {
+export async function pathExists(path: string): Promise<boolean> {
   try {
     await stat(path);
     return true;
@@ -167,45 +167,6 @@ async function exists(path: string): Promise<boolean> {
   }
 }
 
-/** Creates a sibling `<repo>-agent-N` worktree on branch `agent-N`. */
-export async function createSessionWorktree(cwd: string): Promise<string> {
-  const repoRoot = await resolveRepoRoot(cwd);
-  if (!repoRoot) {
-    throw new Error("O diretório não é um repositório git");
-  }
-
-  for (let n = 1; n < 100; n += 1) {
-    const branch = `agent-${n}`;
-    const path = `${repoRoot}-${branch}`;
-    const branchExists = await tryGit([
-      "-C",
-      repoRoot,
-      "show-ref",
-      "--verify",
-      "--quiet",
-      `refs/heads/${branch}`,
-    ]);
-
-    if ((await exists(path)) || branchExists !== null) {
-      continue;
-    }
-
-    await executeGit([
-      "-C",
-      repoRoot,
-      "worktree",
-      "add",
-      path,
-      "-b",
-      branch,
-    ]);
-    return path;
-  }
-
-  throw new Error("Limite de worktrees atingido");
-}
-
 // Names used by the preload contract.
 export const getContext = getGitContext;
 export const getDiff = getSessionDiff;
-export const createWorktree = createSessionWorktree;

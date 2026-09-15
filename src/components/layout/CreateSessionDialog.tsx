@@ -15,6 +15,9 @@ import {
   WINDOWS_QWEN27_DEFAULT_GGUF,
 } from "../../config/agents-windows";
 import { isWindowsHost } from "../../core/platform-info";
+import { planWorktree } from "../../core/worktree";
+import type { WorktreeRef } from "../../types/session";
+import type { WorktreePlan } from "../../../electron/types/api";
 
 /** The conventional GGUF location, spelled for this host's shell. */
 function defaultGgufFor(agentId: string): string {
@@ -71,6 +74,7 @@ interface CreateSessionDialogProps {
       ollamaThinkOff?: boolean;
       ggufPath?: string;
       wslDistro?: string;
+      worktree?: WorktreeRef;
     },
   ) => void;
 }
@@ -206,8 +210,10 @@ export function CreateSessionDialog({
   const [wslDistros, setWslDistros] = useState<string[] | null>(null);
   // "" is PowerShell; anything else is the WSL distribution to open.
   const [wslDistro, setWslDistro] = useState("");
-  const [isGitRepo, setIsGitRepo] = useState(false);
-  const [useWorktree, setUseWorktree] = useState(false);
+  const [worktreePlan, setWorktreePlan] = useState<WorktreePlan | null>(null);
+  // `null` enquanto ninguém mexeu no checkbox: aí vale o que o plano sugeriu.
+  // Depois de uma decisão manual, ela manda até o diálogo fechar.
+  const [worktreeChoice, setWorktreeChoice] = useState<boolean | null>(null);
   const [creating, setCreating] = useState(false);
 
   useEffect(() => {
@@ -233,17 +239,34 @@ export function CreateSessionDialog({
     return () => window.removeEventListener("keydown", handler);
   }, [open, onClose]);
 
+  // A pasta digitada é consultada com atraso: o plano dispara um `git` por
+  // sessão aberta, e não faz sentido rodar isso a cada tecla.
   useEffect(() => {
     if (!open) {
       return;
     }
     const target = cwd.trim() || defaultCwd;
+    // A escolha manual valia para a pasta anterior. Mantê-la aqui deixaria um
+    // "isolar" marcado apontando para algo que talvez nem seja repositório.
+    setWorktreeChoice(null);
+    let cancelled = false;
     const timer = window.setTimeout(() => {
-      void window.headTerminal.git.getContext(target)
-        .then((context) => setIsGitRepo(Boolean(context.repoRoot)))
-        .catch(() => setIsGitRepo(false));
+      void planWorktree(target)
+        .then((plan) => {
+          if (!cancelled) {
+            setWorktreePlan(plan);
+          }
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setWorktreePlan(null);
+          }
+        });
     }, 300);
-    return () => window.clearTimeout(timer);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
   }, [cwd, defaultCwd, open]);
 
   useEffect(() => {
@@ -253,7 +276,8 @@ export function CreateSessionDialog({
       const lastAccount = loadLastClaudeAccount();
       setCwd(defaultCwd);
       setCwdError(null);
-      setUseWorktree(false);
+      setWorktreePlan(null);
+      setWorktreeChoice(null);
       setCreating(false);
       setClaudeAccounts(accounts);
       setAgentProfileId(
@@ -386,6 +410,11 @@ export function CreateSessionDialog({
     return null;
   }
 
+  // Sem decisão manual, vale a recomendação do plano.
+  const isolateInWorktree =
+    Boolean(worktreePlan?.isRepo) &&
+    (worktreeChoice ?? worktreePlan?.recommended ?? false);
+
   const profiles = Object.values(buildAgentProfiles());
   const profileLabel = (id: string): string =>
     profiles.find((profile) => profile.id === id)?.label ?? id;
@@ -442,10 +471,29 @@ export function CreateSessionDialog({
       return;
     }
 
+    // O plano da tela roda com atraso e pode estar velho; o da hora de criar é
+    // que vale. Fora de um repositório não há o que isolar, marcado ou não.
+    let isolate = false;
+    try {
+      const plan = await planWorktree(nextCwd);
+      isolate = plan.isRepo && (worktreeChoice ?? plan.recommended);
+    } catch {
+      isolate = false;
+    }
+
     let sessionCwd = nextCwd;
-    if (isGitRepo && useWorktree) {
+    let worktree: WorktreeRef | undefined;
+    if (isolate) {
       try {
-        sessionCwd = await window.headTerminal.git.createWorktree(nextCwd);
+        const info = await window.headTerminal.git.createWorktree(nextCwd, {
+          copyIgnored: true,
+        });
+        sessionCwd = info.path;
+        worktree = {
+          path: info.path,
+          branch: info.branch,
+          mainRepoRoot: info.mainRepoRoot,
+        };
       } catch (error) {
         setCwdError(`Falha ao criar worktree: ${String(error)}`);
         setCreating(false);
@@ -480,6 +528,7 @@ export function CreateSessionDialog({
         ? sanitizeGgufPath(ggufPath)
         : undefined,
       wslDistro: shellOnWsl && wslDistro ? wslDistro : undefined,
+      worktree,
     });
     onClose();
   };
@@ -565,16 +614,22 @@ export function CreateSessionDialog({
           </div>
         )}
 
-        {isGitRepo && (
+        {worktreePlan?.isRepo && (
           <label className="create-session-dialog__worktree">
             <input
               type="checkbox"
-              checked={useWorktree}
-              onChange={(event) => setUseWorktree(event.target.checked)}
+              checked={isolateInWorktree}
+              onChange={(event) => setWorktreeChoice(event.target.checked)}
             />
             <span>
-              <strong>Worktree isolado</strong>
-              Cria uma branch agent-N em pasta irmã.
+              <strong>
+                {worktreePlan.recommended
+                  ? "Worktree isolado (recomendado)"
+                  : "Worktree isolado"}
+              </strong>
+              {worktreePlan.recommended
+                ? `Esta árvore já está aberta em ${worktreePlan.occupants} terminal(is) — dois agents nela brigam pelo mesmo git. Cria uma branch agent-N em pasta irmã, com os arquivos ignorados (.env e afins) copiados.`
+                : "Ninguém mais está nesta árvore, então a sessão abre o repositório direto. Marque para trabalhar numa branch agent-N à parte mesmo assim."}
             </span>
           </label>
         )}

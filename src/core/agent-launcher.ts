@@ -7,7 +7,7 @@ import { createEmptySession } from "./session-manager";
 import { collectPaneIds } from "./session-layout";
 import { basenamePath } from "./path-utils";
 import { isWindowsHost } from "./platform-info";
-import type { AgentSession } from "../types/session";
+import type { AgentSession, WorktreeRef } from "../types/session";
 
 /** PowerShell on Windows (resolved by the main process), a login zsh elsewhere. */
 function getFallbackShell(): string {
@@ -38,6 +38,7 @@ export function createInitialSession(
     ollamaThinkOff?: boolean;
     ggufPath?: string;
     wslDistro?: string;
+    worktree?: WorktreeRef;
   } = {},
 ): AgentSession {
   const profile = getAgentProfile(agentProfileId);
@@ -53,6 +54,7 @@ export function createInitialSession(
     ollamaThinkOff: extras.ollamaThinkOff,
     ggufPath: extras.ggufPath,
     wslDistro: extras.wslDistro,
+    worktree: extras.worktree,
   });
 }
 

@@ -6,6 +6,7 @@ import { exportDiagnosticBundle } from "../../core/export-diagnostic";
 import { runGhostGlyphDiagnostic } from "../../core/ghost-glyph-diagnostic";
 import { logError } from "../../core/logger";
 import { useSessionStore } from "../../core/session-manager";
+import { closePaneWithWorktreeReview } from "../../core/worktree";
 import { toggleBrainstorm } from "../../core/live-brainstorm";
 import { getTerminal } from "../../core/terminal-registry";
 import { isVoiceInputSupported, toggleVoiceInput } from "../../core/voice-input";
@@ -66,7 +67,6 @@ export function CommandPalette({
   const dialogRef = useRef<HTMLDivElement>(null);
   const splitActivePane = useSessionStore((state) => state.splitActivePane);
   const activePaneId = useSessionStore((state) => state.activePaneId);
-  const closePane = useSessionStore((state) => state.closePane);
   const toggleMaximizedActivePane = useSessionStore(
     (state) => state.toggleMaximizedActivePane,
   );
@@ -121,7 +121,7 @@ export function CommandPalette({
         toggleMaximizedActivePane();
       } else if (command === "__close_pane__") {
         if (activePaneId) {
-          closePane(activePaneId);
+          void closePaneWithWorktreeReview(activePaneId);
         }
       } else if (command === "__rename_session__") {
         onRenameRequest();
@@ -152,7 +152,6 @@ export function CommandPalette({
     [
       activePaneId,
       closePalette,
-      closePane,
       onRenameRequest,
       onSettingsRequest,
       splitActivePane,

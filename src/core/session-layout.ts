@@ -2,6 +2,7 @@ import type {
   LayoutNode,
   PaneLayoutNode,
   SplitDirection,
+  WorktreeRef,
 } from "../types/session";
 
 export interface PaneRect {
@@ -107,7 +108,10 @@ export function mapPaneNodes(
   };
 }
 
-/** Gives one pane its own working directory; `undefined` puts it back on the session's. */
+/** Gives one pane its own working directory; `undefined` puts it back on the session's.
+ *
+ * Sai junto a marca de worktree: ela só vale enquanto o terminal está na árvore
+ * que o app criou para ele, e trocar a pasta na mão é justamente sair de lá. */
 export function setPaneCwdInLayout(
   layout: LayoutNode,
   paneId: string,
@@ -117,9 +121,33 @@ export function setPaneCwdInLayout(
     if (pane.paneId !== paneId) {
       return pane;
     }
-    const { cwd: _previous, ...rest } = pane;
+    const { cwd: _previous, worktree: _worktree, ...rest } = pane;
     return cwd ? { ...rest, cwd } : rest;
   });
+}
+
+/** Move um terminal para a árvore isolada que acabou de ser criada para ele. */
+export function setPaneWorktreeInLayout(
+  layout: LayoutNode,
+  paneId: string,
+  worktree: WorktreeRef,
+): LayoutNode {
+  return mapPaneNodes(layout, (pane) =>
+    pane.paneId === paneId
+      ? { ...pane, cwd: worktree.path, worktree }
+      : pane,
+  );
+}
+
+/** As árvores que o app criou para terminais desta sessão. */
+export function collectPaneWorktrees(layout: LayoutNode): WorktreeRef[] {
+  if (layout.kind === "pane") {
+    return layout.worktree ? [layout.worktree] : [];
+  }
+  return [
+    ...collectPaneWorktrees(layout.first),
+    ...collectPaneWorktrees(layout.second),
+  ];
 }
 
 /** Where this pane's terminal runs: its own folder, else the session's default. */

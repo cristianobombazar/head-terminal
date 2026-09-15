@@ -18,7 +18,9 @@ import {
   useSessionStore,
 } from "../../core/session-manager";
 import { NEW_CONVERSATION_LABEL } from "../../core/conversation-display";
+import { collectPaneIds, findPaneNode } from "../../core/session-layout";
 import { basenamePath } from "../../core/path-utils";
+import { isolatePaneInWorktree } from "../../core/worktree";
 import { usePaneConversation } from "../../hooks/usePaneConversation";
 import { GitBranchBadge } from "../ui/GitBranchBadge";
 import {
@@ -33,6 +35,7 @@ import {
   IconClose,
   IconPencil,
   IconFolder,
+  IconGitBranch,
   IconMaximize,
   IconMinimize,
   IconRefresh,
@@ -331,6 +334,31 @@ function PaneFolderButton({ paneId, cwd }: { paneId: string; cwd: string }) {
   );
 }
 
+/** Tira este terminal da árvore compartilhada e o põe na sua própria, com
+ * branch e index só dele. A pasta do cabeçalho passa a ser a do worktree e o
+ * agent reinicia lá — é o mesmo caminho que "trocar de pasta", só que a pasta
+ * é criada na hora. */
+function PaneIsolateButton({ paneId }: { paneId: string }) {
+  const [isolating, setIsolating] = useState(false);
+
+  return (
+    <button
+      type="button"
+      className="terminal-pane-header__action"
+      disabled={isolating}
+      title="Isolar em worktree: branch agent-N em pasta irmã, com os arquivos ignorados copiados. Reinicia só este terminal."
+      aria-label="Isolar este terminal em um worktree"
+      onClick={(event) => {
+        event.stopPropagation();
+        setIsolating(true);
+        void isolatePaneInWorktree(paneId).finally(() => setIsolating(false));
+      }}
+    >
+      <IconGitBranch size={13} />
+    </button>
+  );
+}
+
 interface TerminalPaneHeaderProps {
   paneId: string;
   cwd: string;
@@ -365,6 +393,21 @@ export function TerminalPaneHeader({
     (state) => state.toggleMaximizedPane,
   );
   const gitContext = useSessionStore((state) => state.paneGitContext[paneId]);
+  // Este terminal já tem uma árvore só dele: ou a pegou sozinho, ou é o único
+  // da sessão e a sessão inteira foi isolada. Dois terminais numa sessão
+  // isolada ainda dividem a mesma árvore, então lá o botão continua valendo.
+  const ownsWorktree = useSessionStore((state) =>
+    state.sessions.some((session) => {
+      const pane = findPaneNode(session.layout, paneId);
+      if (!pane) {
+        return false;
+      }
+      return (
+        Boolean(pane.worktree) ||
+        (Boolean(session.worktree) && collectPaneIds(session.layout).length === 1)
+      );
+    }),
+  );
   const contextPercent = useSessionStore(
     (state) => state.paneRuntime[paneId]?.contextPercent,
   );
@@ -450,6 +493,9 @@ export function TerminalPaneHeader({
           </button>
         )}
         <VoiceInputButton paneId={paneId} />
+        {gitContext?.repoRoot && !ownsWorktree && (
+          <PaneIsolateButton paneId={paneId} />
+        )}
         {(paneCount > 1 || isMaximized) && (
           <button
             type="button"

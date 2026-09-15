@@ -7,6 +7,8 @@ interface SessionContextMenuProps {
   onRename: () => void;
   onTogglePin: () => void;
   onChangeFolder: () => void;
+  /** Ausente quando a sessão já está numa árvore isolada ou fora de um repo. */
+  onIsolate?: () => void;
   onDuplicate: () => void;
   onClose: () => void;
   onDismiss: () => void;
@@ -19,6 +21,7 @@ export function SessionContextMenu({
   onRename,
   onTogglePin,
   onChangeFolder,
+  onIsolate,
   onDuplicate,
   onClose,
   onDismiss,
@@ -62,6 +65,11 @@ export function SessionContextMenu({
       <button type="button" onClick={onChangeFolder}>
         Alterar pasta…
       </button>
+      {onIsolate && (
+        <button type="button" onClick={onIsolate}>
+          Isolar em worktree…
+        </button>
+      )}
       <button type="button" onClick={onDuplicate}>
         Duplicar
       </button>

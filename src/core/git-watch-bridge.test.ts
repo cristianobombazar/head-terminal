@@ -32,6 +32,10 @@ function installGitMock(): {
   const getContext = vi.fn<GitApi["getContext"]>().mockResolvedValue(payload);
   const getDiff = vi.fn<GitApi["getDiff"]>().mockResolvedValue("");
   const createWorktree = vi.fn<GitApi["createWorktree"]>();
+  const planWorktree = vi.fn<GitApi["planWorktree"]>();
+  const listWorktrees = vi.fn<GitApi["listWorktrees"]>();
+  const worktreeStatus = vi.fn<GitApi["worktreeStatus"]>();
+  const removeWorktree = vi.fn<GitApi["removeWorktree"]>();
   const watch = vi.fn<GitApi["watch"]>().mockResolvedValue(undefined);
   const unwatch = vi.fn<GitApi["unwatch"]>().mockResolvedValue(undefined);
   const unsubscribe = vi.fn();
@@ -43,6 +47,10 @@ function installGitMock(): {
     getContext,
     getDiff,
     createWorktree,
+    planWorktree,
+    listWorktrees,
+    worktreeStatus,
+    removeWorktree,
     watch,
     unwatch,
     onChanged,

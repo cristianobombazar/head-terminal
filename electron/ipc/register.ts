@@ -41,6 +41,10 @@ import type {
   SpawnPtyInput,
   StartupContext,
   SupportedAgent,
+  WorktreeEntry,
+  WorktreeInfo,
+  WorktreePlan,
+  WorktreeStatus,
   WritePtyInput,
 } from "../types/api";
 import { IPC_CHANNELS } from "./channels";
@@ -50,7 +54,13 @@ import {
   WSL_SHELL_COMMAND,
 } from "../../src/config/agents-shared";
 import { unsupported } from "./errors";
-import { asBoolean, asRecord, asString, assertTrustedSender } from "./validate";
+import {
+  asBoolean,
+  asRecord,
+  asString,
+  asStringArray,
+  assertTrustedSender,
+} from "./validate";
 import { isPersistedWorkspace } from "../services/workspace-service";
 import { ClipboardPasteService } from "../services/clipboard-paste-service";
 import { AGENT_SESSION_ID_PATTERN } from "../services/live-brainstorm-service";
@@ -66,7 +76,22 @@ export interface IpcServices {
   git?: {
     getContext(cwd: string): Promise<GitContextPayload>;
     getDiff(cwd: string): Promise<string>;
-    createWorktree(cwd: string): Promise<string>;
+    createWorktree(
+      cwd: string,
+      options?: { copyIgnored?: boolean },
+    ): Promise<WorktreeInfo>;
+    planWorktree(input: {
+      cwd: string;
+      occupiedCwds?: readonly string[];
+    }): Promise<WorktreePlan>;
+    listWorktrees(cwd: string): Promise<WorktreeEntry[]>;
+    worktreeStatus(path: string): Promise<WorktreeStatus>;
+    removeWorktree(input: {
+      path: string;
+      branch?: string;
+      force?: boolean;
+      deleteBranch?: boolean;
+    }): Promise<void>;
     watch(
       input: GitWatchInput,
       emit: (event: GitChangedEvent) => void,
@@ -241,10 +266,55 @@ export function registerIpc({
     services.git?.getDiff(asString(value, "cwd", { maxLength: 16_384 })) ??
       unsupported("git.getDiff"),
   );
-  handle(IPC_CHANNELS.git.createWorktree, (_event, value) =>
-    services.git?.createWorktree(asString(value, "cwd", { maxLength: 16_384 })) ??
-      unsupported("git.createWorktree"),
+  handle(IPC_CHANNELS.git.createWorktree, (_event, value) => {
+    const input = asRecord(value, "input");
+    if (!services.git) return unsupported("git.createWorktree");
+    return services.git.createWorktree(
+      asString(input.cwd, "cwd", { maxLength: 16_384 }),
+      {
+        copyIgnored:
+          input.copyIgnored === undefined
+            ? undefined
+            : asBoolean(input.copyIgnored, "copyIgnored"),
+      },
+    );
+  });
+  handle(IPC_CHANNELS.git.planWorktree, (_event, value) => {
+    const input = asRecord(value, "input");
+    if (!services.git) return unsupported("git.planWorktree");
+    return services.git.planWorktree({
+      cwd: asString(input.cwd, "cwd", { maxLength: 16_384 }),
+      occupiedCwds: asStringArray(input.occupiedCwds, "occupiedCwds", {
+        maxLength: 16_384,
+        maxItems: 256,
+      }),
+    });
+  });
+  handle(IPC_CHANNELS.git.listWorktrees, (_event, value) =>
+    services.git?.listWorktrees(asString(value, "cwd", { maxLength: 16_384 })) ??
+      unsupported("git.listWorktrees"),
   );
+  handle(IPC_CHANNELS.git.worktreeStatus, (_event, value) =>
+    services.git?.worktreeStatus(asString(value, "path", { maxLength: 16_384 })) ??
+      unsupported("git.worktreeStatus"),
+  );
+  handle(IPC_CHANNELS.git.removeWorktree, (_event, value) => {
+    const input = asRecord(value, "input");
+    if (!services.git) return unsupported("git.removeWorktree");
+    return services.git.removeWorktree({
+      path: asString(input.path, "path", { maxLength: 16_384 }),
+      branch:
+        input.branch === undefined
+          ? undefined
+          : asString(input.branch, "branch", { maxLength: 512 }),
+      force:
+        input.force === undefined ? undefined : asBoolean(input.force, "force"),
+      deleteBranch:
+        input.deleteBranch === undefined
+          ? undefined
+          : asBoolean(input.deleteBranch, "deleteBranch"),
+    });
+  });
   handle(IPC_CHANNELS.git.watch, (_event, value) => {
     const input = validateGitWatchInput(value);
     const result = (

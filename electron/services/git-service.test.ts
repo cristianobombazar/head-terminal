@@ -5,11 +5,7 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import {
-  createSessionWorktree,
-  getGitContext,
-  getSessionDiff,
-} from "./git-service";
+import { getGitContext, getSessionDiff } from "./git-service";
 
 const cleanup: string[] = [];
 
@@ -100,16 +96,6 @@ describe("git-service", () => {
     expect(diff).toContain("-before");
     expect(diff).toContain("+after");
     expect(diff).toContain("?? novo arquivo (untracked): new.txt");
-  });
-
-  it("creates collision-free numbered sibling worktrees", async () => {
-    const repo = await createRepo();
-    const first = await createSessionWorktree(repo);
-    const second = await createSessionWorktree(repo);
-    expect(first).toBe(`${repo}-agent-1`);
-    expect(second).toBe(`${repo}-agent-2`);
-    expect(git(first, "branch", "--show-current")).toBe("agent-1");
-    expect(git(second, "branch", "--show-current")).toBe("agent-2");
   });
 
   it("does not interpret a cwd as shell syntax", async () => {

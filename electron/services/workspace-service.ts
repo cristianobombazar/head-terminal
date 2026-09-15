@@ -18,11 +18,20 @@ function isBoundedString(value: unknown, maxLength: number): value is string {
   return typeof value === "string" && value.length > 0 && value.length <= maxLength;
 }
 
+function isWorktreeRef(value: unknown): boolean {
+  if (value === undefined) return true;
+  return isRecord(value)
+    && isBoundedString(value.path, 16_384)
+    && isBoundedString(value.branch, 512)
+    && isBoundedString(value.mainRepoRoot, 16_384);
+}
+
 function isLayoutNode(value: unknown, depth = 0): boolean {
   if (!isRecord(value) || depth > 16) return false;
   if (value.kind === "pane") {
     return isBoundedString(value.paneId, 256)
-      && (value.cwd === undefined || isBoundedString(value.cwd, 16_384));
+      && (value.cwd === undefined || isBoundedString(value.cwd, 16_384))
+      && isWorktreeRef(value.worktree);
   }
   if (value.kind !== "split") return false;
   return (value.direction === "horizontal" || value.direction === "vertical")
@@ -64,6 +73,7 @@ export function isPersistedWorkspace(value: unknown): value is PersistedWorkspac
     && (session.wslDistro === undefined
       || isBoundedString(session.wslDistro, 64))
     && (session.pinned === undefined || typeof session.pinned === "boolean")
+    && isWorktreeRef(session.worktree)
     && isLayoutNode(session.layout));
 }
 

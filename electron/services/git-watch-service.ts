@@ -3,11 +3,17 @@ import { readFile, stat } from "node:fs/promises";
 import { dirname, isAbsolute, join, resolve, sep } from "node:path";
 
 import {
-  createSessionWorktree,
   getGitContext,
   getSessionDiff,
   type GitContextPayload,
 } from "./git-service";
+import {
+  createSessionWorktree,
+  getWorktreeStatus,
+  listWorktrees,
+  planSessionWorktree,
+  removeSessionWorktree,
+} from "./git-worktree-service";
 
 const WATCH_ID_PATTERN = /^[a-zA-Z0-9._:-]{1,128}$/u;
 const DEBOUNCE_MS = 120;
@@ -330,6 +336,10 @@ export function createGitService(options: GitWatchServiceOptions = {}): {
   getContext: typeof getGitContext;
   getDiff: typeof getSessionDiff;
   createWorktree: typeof createSessionWorktree;
+  planWorktree: typeof planSessionWorktree;
+  listWorktrees: typeof listWorktrees;
+  worktreeStatus: typeof getWorktreeStatus;
+  removeWorktree: typeof removeSessionWorktree;
   watch(
     input: GitWatchInput,
     emit: GitContextChangedListener,
@@ -345,6 +355,10 @@ export function createGitService(options: GitWatchServiceOptions = {}): {
     getContext: getGitContext,
     getDiff: getSessionDiff,
     createWorktree: createSessionWorktree,
+    planWorktree: planSessionWorktree,
+    listWorktrees,
+    worktreeStatus: getWorktreeStatus,
+    removeWorktree: removeSessionWorktree,
     async watch(input, emit) {
       validateWatchId(input.watchId);
       emitters.set(input.watchId, emit);

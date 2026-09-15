@@ -40,3 +40,22 @@ export function asRecord(value: unknown, field: string): Record<string, unknown>
   }
   return value as Record<string, unknown>;
 }
+
+export function asStringArray(
+  value: unknown,
+  field: string,
+  options: { maxLength?: number; maxItems?: number } = {},
+): string[] {
+  if (value === undefined) {
+    return [];
+  }
+  if (!Array.isArray(value)) {
+    throw new IpcError("INVALID_INPUT", `${field} must be an array`);
+  }
+  if (value.length > (options.maxItems ?? 1_000)) {
+    throw new IpcError("INVALID_INPUT", `${field} has too many items`);
+  }
+  return value.map((item, index) =>
+    asString(item, `${field}[${index}]`, { maxLength: options.maxLength }),
+  );
+}

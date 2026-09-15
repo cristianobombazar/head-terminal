@@ -9,7 +9,8 @@ Desktop terminal for working with several AI coding agents in parallel. The appl
 - lazy spawn, per-pane restart and scrollback preservation;
 - the agent conversation a pane is on is shown in its header, renamable by hand, and the name also applies in the resume list;
 - Antigravity, Cursor Agent, Claude Code, Codex and shell profiles;
-- multiple Claude accounts, each in its own `~/.head-terminal/claude-profiles/<id>` (the user's own `~/.claude` is never used by a pane, so logging in inside the app never changes the account of a terminal opened outside it), and optional `agent-N` Git worktrees;
+- multiple Claude accounts, each in its own `~/.head-terminal/claude-profiles/<id>` (the user's own `~/.claude` is never used by a pane, so logging in inside the app never changes the account of a terminal opened outside it);
+- automatic `agent-N` Git worktrees, so several agents can work on one repository without fighting over the same working tree (see below);
 - search, zoom, links, clipboard and WebGL rendering with fallback;
 - activity detection, remaining context, crashes and shell fallback;
 - Git context, watcher and diff, including untracked files;
@@ -181,6 +182,45 @@ sudo apt install ./out/make/deb/x64/head-terminal_*.deb
 | `Ctrl+Shift+L` | `/clear` in the active terminal or in all of them |
 
 The `Split ↓` and `Split →` buttons split the active pane. “Run everything” sends toolbar commands to every pane in the session.
+
+## Several agents on one repository
+
+Two agents in the same folder share one working tree: one `git status`, one
+index, one `index.lock`, and commits from one landing in the other's work. Head
+Terminal keeps them apart with Git worktrees — a sibling folder on its own
+branch, sharing the repository's `.git`, so each agent commits and pushes
+independently.
+
+Isolation is offered exactly when it is needed: **the first session opens the
+repository itself, and only a session arriving at a tree somebody is already in
+gets a worktree of its own.** The new-session dialog says which case it is and
+leaves the checkbox open either way; `Duplicar` on a session always isolates the
+copy, since the original is by definition already there.
+
+| Where | What it does |
+|---|---|
+| New session dialog | Pre-checks *Worktree isolado* when the chosen tree already has a terminal in it |
+| Pane header ⎇ button | Moves that one terminal to a fresh worktree, restarts it there, and the folder in the header follows |
+| Session menu → *Isolar em worktree…* | The same for every terminal of the session |
+| Session menu → *Duplicar* | The copy never lands in the tree the original occupies |
+
+Each tree is `<repo>-agent-N` next to the repository, on branch `agent-N`. Files
+the repository ignores but the project needs — `.env`, `.claude/settings.local.json`
+and the like — are copied over, since `git worktree add` only writes tracked
+files and the agent would otherwise land in a checkout that does not run.
+Ignored *directories* (`node_modules/`, `dist/`) are not copied: install them in
+the worktree as usual.
+
+Closing a session or a terminal that owns a worktree asks what to do with it —
+from the pane's ✕, the session menu, `Ctrl+Shift+W` or the command palette
+alike. A tree with nothing to lose — no uncommitted change and no commit that
+exists only there — is offered for removal, folder and branch together; the
+branch goes only while the worktree is still on it, so a branch you switched to
+yourself is never touched. A tree that still holds work is never removed: the
+choice is to close and keep the folder, or to cancel and go publish first.
+Moving a session or terminal to another folder by hand drops the app's claim on
+that worktree; it stays on disk for `git worktree remove` whenever you want it
+gone.
 
 ## Agents
 

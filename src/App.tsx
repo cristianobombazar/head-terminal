@@ -23,6 +23,7 @@ import {
   applyMigratedPreferences,
   loadRunEverything,
 } from "./core/ui-preferences";
+import type { WorktreeRef } from "./types/session";
 
 import "./styles/global.css";
 
@@ -154,6 +155,7 @@ function App() {
         ollamaThinkOff?: boolean;
         ggufPath?: string;
         wslDistro?: string;
+        worktree?: WorktreeRef;
       },
     ) => {
       const title = nextAgentSessionTitle(agentProfileId, sessions, extras?.wslDistro);

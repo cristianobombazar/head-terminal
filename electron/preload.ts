@@ -38,8 +38,16 @@ const api: HeadTerminalApi = {
   git: {
     getContext: (cwd) => ipcRenderer.invoke(IPC_CHANNELS.git.getContext, cwd),
     getDiff: (cwd) => ipcRenderer.invoke(IPC_CHANNELS.git.getDiff, cwd),
-    createWorktree: (cwd) =>
-      ipcRenderer.invoke(IPC_CHANNELS.git.createWorktree, cwd),
+    createWorktree: (cwd, options) =>
+      ipcRenderer.invoke(IPC_CHANNELS.git.createWorktree, { cwd, ...options }),
+    planWorktree: (input) =>
+      ipcRenderer.invoke(IPC_CHANNELS.git.planWorktree, input),
+    listWorktrees: (cwd) =>
+      ipcRenderer.invoke(IPC_CHANNELS.git.listWorktrees, cwd),
+    worktreeStatus: (path) =>
+      ipcRenderer.invoke(IPC_CHANNELS.git.worktreeStatus, path),
+    removeWorktree: (input) =>
+      ipcRenderer.invoke(IPC_CHANNELS.git.removeWorktree, input),
     watch: (input) => ipcRenderer.invoke(IPC_CHANNELS.git.watch, input),
     unwatch: (watchId) => ipcRenderer.invoke(IPC_CHANNELS.git.unwatch, watchId),
     onChanged: (callback) =>

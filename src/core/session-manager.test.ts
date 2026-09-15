@@ -543,6 +543,66 @@ describe("useSessionStore pane folders", () => {
     expect(resolvePaneCwd(session, second)).toBe("E:\\moved");
     expect(findPaneNode(session.layout, second)?.cwd).toBeUndefined();
   });
+
+  const worktree = {
+    path: "D:\\repo-agent-1",
+    branch: "agent-1",
+    mainRepoRoot: "D:\\repo",
+  };
+
+  it("moves one terminal into its own worktree and restarts only it", () => {
+    const { first, second } = withSplitSession();
+    const before = useSessionStore.getState().paneRestartKeys;
+
+    useSessionStore.getState().adoptPaneWorktree(second, worktree);
+
+    const state = useSessionStore.getState();
+    const session = state.sessions[0];
+    expect(resolvePaneCwd(session, second)).toBe(worktree.path);
+    expect(findPaneNode(session.layout, second)?.worktree).toEqual(worktree);
+    expect(resolvePaneCwd(session, first)).toBe("C:\\Users\\m\\default");
+    expect(state.paneRestartKeys[second] ?? 0).toBe((before[second] ?? 0) + 1);
+    expect(state.paneRestartKeys[first] ?? 0).toBe(before[first] ?? 0);
+  });
+
+  it("takes the whole session into a worktree and brings every pane along", () => {
+    const { first, second } = withSplitSession();
+    useSessionStore.getState().updatePaneCwd(second, "D:\\elsewhere");
+
+    useSessionStore.getState().adoptSessionWorktree("s", worktree);
+
+    const session = useSessionStore.getState().sessions[0];
+    expect(session.cwd).toBe(worktree.path);
+    expect(session.worktree).toEqual(worktree);
+    expect(resolvePaneCwd(session, first)).toBe(worktree.path);
+    expect(resolvePaneCwd(session, second)).toBe(worktree.path);
+  });
+
+  it("drops the worktree mark once the folder is moved by hand", () => {
+    const { second } = withSplitSession();
+    useSessionStore.getState().adoptSessionWorktree("s", worktree);
+    useSessionStore.getState().adoptPaneWorktree(second, worktree);
+
+    // Sair da árvore isolada na mão: a sessão não responde mais por ela.
+    useSessionStore.getState().updateSessionCwd("s", "E:\\moved");
+    let session = useSessionStore.getState().sessions[0];
+    expect(session.worktree).toBeUndefined();
+    expect(findPaneNode(session.layout, second)?.worktree).toBeUndefined();
+
+    useSessionStore.getState().adoptPaneWorktree(second, worktree);
+    useSessionStore.getState().updatePaneCwd(second, "E:\\somewhere-else");
+    session = useSessionStore.getState().sessions[0];
+    expect(findPaneNode(session.layout, second)?.worktree).toBeUndefined();
+  });
+
+  it("keeps the mark when the session is pointed back at its own worktree", () => {
+    withSplitSession();
+    useSessionStore.getState().adoptSessionWorktree("s", worktree);
+
+    useSessionStore.getState().updateSessionCwd("s", worktree.path);
+
+    expect(useSessionStore.getState().sessions[0].worktree).toEqual(worktree);
+  });
 });
 
 describe("useSessionStore maximized pane", () => {

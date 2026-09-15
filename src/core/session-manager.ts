@@ -10,6 +10,7 @@ import {
   mapPaneNodes,
   resolvePaneCwd,
   setPaneCwdInLayout,
+  setPaneWorktreeInLayout,
   splitPaneInLayout,
   updateSplitRatioInLayout,
 } from "./session-layout";
@@ -25,7 +26,12 @@ import {
   saveRunEverything,
 } from "./ui-preferences";
 import type { GitContext } from "../types/git-context";
-import type { AgentSession, SessionStatus, SplitDirection } from "../types/session";
+import type {
+  AgentSession,
+  SessionStatus,
+  SplitDirection,
+  WorktreeRef,
+} from "../types/session";
 
 export interface PaneRuntime {
   status: SessionStatus;
@@ -115,6 +121,13 @@ interface SessionStore {
   /** Moves one terminal to another folder and restarts only that terminal.
    * The session's own `cwd` stays the default for the other panes. */
     updatePaneCwd: (paneId: string, cwd: string) => void;
+  /** Muda a sessão inteira para a árvore isolada recém-criada: vira o `cwd`
+   * padrão, os terminais que tinham pasta própria voltam a segui-lo, e todos
+   * reiniciam lá. */
+  adoptSessionWorktree: (sessionId: string, worktree: WorktreeRef) => void;
+  /** O mesmo para um terminal só: ele passa a rodar na sua própria árvore, e é
+   * o único que reinicia. Os vizinhos ficam onde estão. */
+  adoptPaneWorktree: (paneId: string, worktree: WorktreeRef) => void;
   setRunEverything: (enabled: boolean) => void;
   removeSession: (sessionId: string) => void;
   reorderSessions: (fromIndex: number, toIndex: number) => void;
@@ -474,15 +487,25 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       // Moving the session moves every terminal in it: a pane that had picked
       // its own folder follows too, otherwise "change folder" would silently
       // leave some panes behind.
-      const nextSessions = state.sessions.map((session) =>
-        session.id === sessionId
-          ? {
-              ...session,
-              cwd: trimmed,
-              layout: mapPaneNodes(session.layout, ({ cwd: _own, ...pane }) => pane),
-            }
-          : session,
-      );
+      const nextSessions = state.sessions.map((session) => {
+        if (session.id !== sessionId) {
+          return session;
+        }
+        // Sair da árvore isolada na mão desfaz a marca: o que o app criou ele
+        // ainda oferece para remover, mas esta sessão não responde mais por ela.
+        const { worktree: _worktree, ...rest } = session;
+        return {
+          ...rest,
+          cwd: trimmed,
+          ...(session.worktree?.path === trimmed
+            ? { worktree: session.worktree }
+            : {}),
+          layout: mapPaneNodes(
+            session.layout,
+            ({ cwd: _own, worktree: _paneWorktree, ...pane }) => pane,
+          ),
+        };
+      });
       const next = { sessions: nextSessions };
       persistWorkspaceState({ ...state, ...next }, { immediate: true });
       return next;
@@ -522,6 +545,67 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
     if (changed) {
       // A conversation belongs to a folder: the agent restarts fresh there.
+      get().restartPane(paneId);
+    }
+  },
+
+  adoptSessionWorktree: (sessionId, worktree) => {
+    const movedPaneIds: string[] = [];
+
+    set((state) => {
+      const nextSessions = state.sessions.map((session) =>
+        session.id === sessionId
+          ? {
+              ...session,
+              cwd: worktree.path,
+              worktree,
+              layout: mapPaneNodes(session.layout, (pane) => {
+                // Um terminal que já tem árvore própria fica onde está: puxá-lo
+                // para a árvore da sessão deixaria a pasta dele órfã, sem
+                // registro e sem ninguém para oferecer a remoção no fim.
+                if (pane.worktree) {
+                  return pane;
+                }
+                movedPaneIds.push(pane.paneId);
+                const { cwd: _own, ...rest } = pane;
+                return rest;
+              }),
+            }
+          : session,
+      );
+      const next = { sessions: nextSessions };
+      persistWorkspaceState({ ...state, ...next }, { immediate: true });
+      return next;
+    });
+
+    // Só quem trocou de pasta reinicia; quem ficou mantém a conversa em curso.
+    for (const paneId of movedPaneIds) {
+      get().restartPane(paneId);
+    }
+  },
+
+  adoptPaneWorktree: (paneId, worktree) => {
+    let changed = false;
+    set((state) => {
+      const nextSessions = state.sessions.map((session) => {
+        if (!sessionHasPane(session, paneId)) {
+          return session;
+        }
+        changed = true;
+        return {
+          ...session,
+          layout: setPaneWorktreeInLayout(session.layout, paneId, worktree),
+        };
+      });
+      if (!changed) {
+        return state;
+      }
+      const next = { sessions: nextSessions };
+      persistWorkspaceState({ ...state, ...next }, { immediate: true });
+      return next;
+    });
+
+    if (changed) {
       get().restartPane(paneId);
     }
   },

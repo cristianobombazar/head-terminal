@@ -1,3 +1,12 @@
+import type {
+  WorktreeEntry,
+  WorktreeInfo,
+  WorktreePlan,
+  WorktreeStatus,
+} from "../services/git-worktree-service";
+
+export type { WorktreeEntry, WorktreeInfo, WorktreePlan, WorktreeStatus };
+
 export type Unsubscribe = () => void;
 
 export type AllowedSecretKey = "openai-api-key";
@@ -304,7 +313,26 @@ export interface HeadTerminalApi {
   git: {
     getContext(cwd: string): Promise<GitContextPayload>;
     getDiff(cwd: string): Promise<string>;
-    createWorktree(cwd: string): Promise<string>;
+    /** Cria a árvore isolada `<repo>-agent-N` e devolve onde ela ficou. */
+    createWorktree(
+      cwd: string,
+      options?: { copyIgnored?: boolean },
+    ): Promise<WorktreeInfo>;
+    /** Diz se uma sessão neste diretório deveria abrir em worktree próprio,
+     * dado o que as outras sessões/terminais já estão ocupando. */
+    planWorktree(input: {
+      cwd: string;
+      occupiedCwds?: readonly string[];
+    }): Promise<WorktreePlan>;
+    listWorktrees(cwd: string): Promise<WorktreeEntry[]>;
+    worktreeStatus(path: string): Promise<WorktreeStatus>;
+    removeWorktree(input: {
+      path: string;
+      /** Só apaga a branch se o worktree ainda estiver nela. */
+      branch?: string;
+      force?: boolean;
+      deleteBranch?: boolean;
+    }): Promise<void>;
     watch(input: GitWatchInput): Promise<{ polling?: boolean } | void>;
     unwatch(watchId: string): Promise<void>;
     onChanged(callback: (event: GitChangedEvent) => void): Unsubscribe;

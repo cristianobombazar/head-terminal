@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { getSessionActivity } from "../core/activity-utils";
 import { fitPanes } from "../core/pane-fit-registry";
 import { useSessionStore } from "../core/session-manager";
+import { closePaneWithWorktreeReview } from "../core/worktree";
 import { notifySessionAttention } from "../core/notifications";
 import { forEachTerminal } from "../core/terminal-registry";
 import {
@@ -73,7 +74,6 @@ export function useKeyboardShortcuts(options: {
   const setActiveSessionId = useSessionStore((state) => state.setActiveSessionId);
   const splitActivePane = useSessionStore((state) => state.splitActivePane);
   const activePaneId = useSessionStore((state) => state.activePaneId);
-  const closePane = useSessionStore((state) => state.closePane);
   const toggleMaximizedActivePane = useSessionStore(
     (state) => state.toggleMaximizedActivePane,
   );
@@ -186,7 +186,7 @@ export function useKeyboardShortcuts(options: {
       ) {
         event.preventDefault();
         if (activePaneId) {
-          closePane(activePaneId);
+          void closePaneWithWorktreeReview(activePaneId);
         }
         return;
       }
@@ -223,7 +223,6 @@ export function useKeyboardShortcuts(options: {
   }, [
     activePaneId,
     activeSessionId,
-    closePane,
     options,
     sessions,
     setActiveSessionId,

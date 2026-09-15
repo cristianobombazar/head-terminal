@@ -8,7 +8,6 @@ import {
   type ComponentType,
 } from "react";
 
-import { createInitialSession } from "../../core/agent-launcher";
 import { formatSessionStatusLine } from "../../core/activity-duration";
 import { getClaudeAccountProfile } from "../../core/claude-accounts";
 import {
@@ -19,6 +18,11 @@ import {
 import { flipAnimate } from "../../core/flip-animate";
 import { collectPaneIds } from "../../core/session-layout";
 import { useSessionStore } from "../../core/session-manager";
+import {
+  closeSessionWithWorktreeReview,
+  isolateSessionInWorktree,
+} from "../../core/worktree";
+import { duplicateSessionIsolated } from "../../actions/duplicateSession";
 import {
   loadSidebarCollapsed,
   saveSidebarCollapsed,
@@ -422,8 +426,6 @@ export function SessionSidebar({
   const setActiveSessionId = useSessionStore((state) => state.setActiveSessionId);
   const setActivePaneId = useSessionStore((state) => state.setActivePaneId);
   const renameSession = useSessionStore((state) => state.renameSession);
-  const removeSession = useSessionStore((state) => state.removeSession);
-  const addSession = useSessionStore((state) => state.addSession);
   const updateSessionCwd = useSessionStore((state) => state.updateSessionCwd);
   const reorderSessions = useSessionStore((state) => state.reorderSessions);
   const togglePinSession = useSessionStore((state) => state.togglePinSession);
@@ -528,7 +530,7 @@ export function SessionSidebar({
             onSelect={() => setActiveSessionId(session.id)}
             onSelectPane={(paneId) => focusSessionPane(session.id, paneId)}
             onRename={(title) => renameSession(session.id, title)}
-            onRemove={() => removeSession(session.id)}
+            onRemove={() => void closeSessionWithWorktreeReview(session.id)}
             onRenameComplete={onRenameComplete}
             onContextMenu={handleContextMenu}
             onDragStart={setDragFrom}
@@ -592,25 +594,24 @@ export function SessionSidebar({
               })
               .catch(() => undefined);
           }}
+          onIsolate={
+            contextMenu.session.worktree
+              ? undefined
+              : () => {
+                  const { session } = contextMenu;
+                  setContextMenu(null);
+                  void isolateSessionInWorktree(session.id);
+                }
+          }
           onDuplicate={() => {
-            addSession(
-              createInitialSession(
-                contextMenu.session.cwd,
-                `${contextMenu.session.title} (cópia)`,
-                contextMenu.session.agentProfileId,
-                {
-                  claudeAccountId: contextMenu.session.claudeAccountId,
-                  ollamaModel: contextMenu.session.ollamaModel,
-                  ollamaThinkOff: contextMenu.session.ollamaThinkOff,
-                  ggufPath: contextMenu.session.ggufPath,
-                  wslDistro: contextMenu.session.wslDistro,
-                },
-              ),
-            );
+            const { session } = contextMenu;
             setContextMenu(null);
+            // Duplicar é o caminho mais curto para dois agents na mesma pasta:
+            // a original já está na árvore, então a cópia ganha a sua.
+            void duplicateSessionIsolated(session);
           }}
           onClose={() => {
-            removeSession(contextMenu.session.id);
+            void closeSessionWithWorktreeReview(contextMenu.session.id);
             setContextMenu(null);
           }}
         />

@@ -7,6 +7,7 @@ import {
 import { debounce } from "../../core/debounce";
 import { fitPanes } from "../../core/pane-fit-registry";
 import { useSessionStore } from "../../core/session-manager";
+import { closePaneWithWorktreeReview } from "../../core/worktree";
 import type { AgentSession } from "../../types/session";
 import { TerminalStatusBar } from "../terminal/TerminalStatusBar";
 import { LayoutDividers } from "./LayoutDividers";
@@ -31,7 +32,6 @@ export const SessionWorkspace = memo(function SessionWorkspace({
   const activeSessionId = useSessionStore((state) => state.activeSessionId);
   const setActivePaneId = useSessionStore((state) => state.setActivePaneId);
   const setActiveSessionId = useSessionStore((state) => state.setActiveSessionId);
-  const closePane = useSessionStore((state) => state.closePane);
   const maximizedPaneId = useSessionStore(
     (state) => state.maximizedPaneIds[session.id] ?? null,
   );
@@ -153,7 +153,7 @@ export const SessionWorkspace = memo(function SessionWorkspace({
                   : undefined
               }
               onFocus={() => focusPane(paneId)}
-              onClose={() => closePane(paneId)}
+              onClose={() => void closePaneWithWorktreeReview(paneId)}
               searchOpen={searchPaneId === paneId}
               onCloseSearch={onCloseSearch}
             />

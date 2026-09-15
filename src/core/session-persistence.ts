@@ -1,6 +1,6 @@
 import { debounce } from "./debounce";
 import { logError } from "./logger";
-import type { AgentSession, LayoutNode } from "../types/session";
+import type { AgentSession, LayoutNode, WorktreeRef } from "../types/session";
 import { collectPaneIds } from "./session-layout";
 
 function resolveStorageKey(): string {
@@ -23,6 +23,7 @@ export interface PersistedSession {
   ollamaThinkOff?: boolean;
   ggufPath?: string;
   wslDistro?: string;
+  worktree?: WorktreeRef;
   layout: LayoutNode;
   pinned?: boolean;
 }
@@ -52,6 +53,7 @@ function toPersistedSession(session: AgentSession): PersistedSession {
     ollamaThinkOff: session.ollamaThinkOff,
     ggufPath: session.ggufPath,
     wslDistro: session.wslDistro,
+    worktree: session.worktree,
     layout: session.layout,
     pinned: session.pinned,
   };
