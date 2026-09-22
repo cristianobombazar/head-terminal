@@ -1,0 +1,455 @@
+/* Minimized terminals — the session's dock and its cards.
+   A minimized terminal leaves the canvas but keeps running. Its card is how
+   the user keeps an eye on it: which terminal it is, whether the agent is
+   still at it, and a signal that is hard to miss once it stops. */
+
+/* The outline that flies between a pane and its card (pane-minimize.ts). */
+.pane-motion-ghost {
+  position: fixed;
+  z-index: var(--z-menu);
+  box-sizing: border-box;
+  border: 1px solid var(--accent-muted);
+  border-radius: var(--radius-pane);
+  background:
+    linear-gradient(var(--surface-pane-header), var(--surface-pane-header))
+      top / 100% min(var(--pane-header-height), 40%) no-repeat,
+    var(--surface-terminal);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+}
+
+/* Bar under the terminals still on screen. Lined up with the panes' inset. */
+.minimized-dock {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: var(--pane-gap) calc(var(--pane-gap) / 2) 0;
+}
+
+/* Card */
+
+.minimized-card {
+  --tone: var(--status-idle);
+  --tone-subtle: var(--status-idle-subtle);
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 0;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--surface-pane-header);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--font-xs);
+  text-align: left;
+  cursor: pointer;
+  animation: minimized-card-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition:
+    border-color var(--transition-fast),
+    background var(--transition-fast),
+    color var(--transition-fast),
+    transform var(--transition-fast);
+}
+
+.minimized-card:hover {
+  border-color: var(--border-strong);
+  background: var(--bg-3);
+  color: var(--text-primary);
+}
+
+.minimized-card:active {
+  transform: translateY(1px);
+}
+
+.minimized-card--working {
+  --tone: var(--status-working);
+  --tone-subtle: var(--status-working-subtle);
+}
+
+.minimized-card--approval,
+.minimized-card--waiting {
+  --tone: var(--status-waiting);
+  --tone-subtle: var(--status-waiting-subtle);
+}
+
+.minimized-card--done {
+  --tone: var(--accent);
+  --tone-subtle: var(--accent-subtle);
+}
+
+.minimized-card--error {
+  --tone: var(--status-error);
+  --tone-subtle: var(--status-error-subtle);
+}
+
+.minimized-card--fallback {
+  --tone: var(--status-fallback);
+  --tone-subtle: var(--status-fallback-subtle);
+}
+
+.minimized-card--exited {
+  --tone: var(--status-exited);
+}
+
+.minimized-card--starting {
+  --tone: var(--text-secondary);
+}
+
+.minimized-card--bar {
+  height: 34px;
+  max-width: 380px;
+  padding: 0 5px;
+}
+
+.minimized-card__text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.minimized-card__title {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+
+.minimized-card__label {
+  flex-shrink: 0;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: var(--font-sm);
+  font-weight: 600;
+}
+
+.minimized-card__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.minimized-card__name--folder {
+  color: var(--text-muted);
+}
+
+.minimized-card__meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.minimized-card__meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.minimized-card__meta-item svg {
+  flex-shrink: 0;
+}
+
+.minimized-card__meta-item span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Status: the tone's color on its own tint, like the pane header's chip. */
+.minimized-card__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  height: 20px;
+  padding: 0 8px 0 7px;
+  border-radius: 999px;
+  background: var(--tone-subtle);
+  color: var(--tone);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.minimized-card__dot {
+  width: 7px;
+  height: 7px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: var(--tone);
+}
+
+.minimized-card--working .minimized-card__dot,
+.minimized-card--approval .minimized-card__dot {
+  animation: status-pulse 1.6s ease-in-out infinite;
+}
+
+.minimized-card--starting .minimized-card__dot {
+  width: 8px;
+  height: 8px;
+  background: transparent;
+  border: 1.5px solid var(--border-strong);
+  border-top-color: var(--text-secondary);
+  animation: spin 0.8s linear infinite;
+}
+
+.minimized-card--exited .minimized-card__dot {
+  background: transparent;
+  border: 1.5px solid var(--status-exited);
+}
+
+.minimized-card__check {
+  flex-shrink: 0;
+}
+
+.minimized-card__time {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  opacity: 0.8;
+}
+
+/* Finished: the one answer the user minimized it to wait for — solid. */
+.minimized-card--done .minimized-card__status {
+  background: var(--accent);
+  color: var(--accent-fg);
+}
+
+.minimized-card--done .minimized-card__time {
+  opacity: 0.7;
+}
+
+.minimized-card__restore {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  opacity: 0.45;
+  transition:
+    opacity var(--transition-fast),
+    color var(--transition-fast),
+    background var(--transition-fast);
+}
+
+.minimized-card:hover .minimized-card__restore,
+.minimized-card:focus-visible .minimized-card__restore {
+  opacity: 1;
+  color: var(--text-primary);
+  background: var(--bg-4);
+}
+
+/* Still working: a slow sweep along the bottom edge. */
+.minimized-card__progress {
+  position: absolute;
+  right: 6px;
+  bottom: -1px;
+  left: 6px;
+  height: 2px;
+  overflow: hidden;
+  border-radius: 2px;
+  pointer-events: none;
+}
+
+.minimized-card__progress::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 35%;
+  background: linear-gradient(90deg, transparent, var(--tone), transparent);
+  animation: minimized-card-progress 1.8s ease-in-out infinite;
+}
+
+/* Needs the user (finished, approval, error): tinted card and a glow that
+   pulses a few times, then stays lit until the terminal is brought back.
+   The glow lives on ::before so the card's own entry animation is never
+   restarted by the class change. */
+.minimized-card::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  box-shadow:
+    0 0 0 1px var(--tone),
+    0 0 16px color-mix(in srgb, var(--tone) 45%, transparent);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--transition-normal);
+}
+
+.minimized-card--attention {
+  border-color: color-mix(in srgb, var(--tone) 55%, var(--border-default));
+  background:
+    linear-gradient(var(--tone-subtle), var(--tone-subtle)),
+    var(--surface-pane-header);
+  color: var(--text-primary);
+}
+
+.minimized-card--attention:hover {
+  background:
+    linear-gradient(var(--tone-subtle), var(--tone-subtle)),
+    var(--bg-3);
+}
+
+.minimized-card--attention::before {
+  opacity: 0.5;
+  animation: minimized-card-glow 1.6s ease-in-out 4;
+}
+
+/* Every terminal of the session minimized: the cards take the canvas. */
+
+.minimized-stage {
+  position: absolute;
+  inset: calc(var(--pane-gap) / 2);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  padding: 24px;
+  overflow: auto;
+  border: 1px dashed var(--border-default);
+  border-radius: var(--radius-pane);
+  background:
+    radial-gradient(
+      ellipse 55% 45% at 50% 50%,
+      rgba(240, 168, 50, 0.04),
+      transparent 70%
+    ),
+    var(--surface-terminal);
+  animation: fade-in var(--transition-normal);
+}
+
+.minimized-stage__heading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  text-align: center;
+}
+
+.minimized-stage__title {
+  color: var(--text-secondary);
+  font-size: var(--font-md);
+  font-weight: 600;
+}
+
+.minimized-stage__hint {
+  color: var(--text-muted);
+  font-size: var(--font-xs);
+}
+
+.minimized-stage__cards {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  max-width: 100%;
+}
+
+.minimized-card--stage {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "agent text restore"
+    "status status status";
+  align-items: center;
+  column-gap: 10px;
+  row-gap: 14px;
+  width: 300px;
+  max-width: 100%;
+  padding: 12px 12px 14px;
+  border-radius: var(--radius-lg);
+}
+
+.minimized-card--stage:hover {
+  transform: translateY(-1px);
+}
+
+.minimized-card--stage .minimized-card__agent {
+  grid-area: agent;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-md);
+}
+
+.minimized-card--stage .minimized-card__text {
+  grid-area: text;
+  gap: 5px;
+}
+
+.minimized-card--stage .minimized-card__label {
+  font-size: var(--font-md);
+}
+
+.minimized-card--stage .minimized-card__name {
+  font-size: var(--font-sm);
+}
+
+.minimized-card--stage .minimized-card__restore {
+  grid-area: restore;
+  align-self: start;
+  opacity: 0.7;
+}
+
+.minimized-card--stage .minimized-card__status {
+  grid-area: status;
+  justify-self: start;
+  height: 22px;
+  padding: 0 10px 0 8px;
+  font-size: 11px;
+}
+
+.minimized-card--stage .minimized-card__progress {
+  right: 12px;
+  left: 12px;
+}
+
+@keyframes minimized-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.97);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes minimized-card-progress {
+  from {
+    transform: translateX(-100%);
+  }
+
+  to {
+    transform: translateX(290%);
+  }
+}
+
+@keyframes minimized-card-glow {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}

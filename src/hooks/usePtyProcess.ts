@@ -79,6 +79,9 @@ export function usePtyProcess({
   const updatePaneContext = useSessionStore(
     (state) => state.updatePaneContext,
   );
+  const updatePaneApproval = useSessionStore(
+    (state) => state.updatePaneApproval,
+  );
   const previousDisposeRef = useRef(Promise.resolve<void>(undefined));
 
   useEffect(() => {
@@ -92,9 +95,14 @@ export function usePtyProcess({
     const listeners: IDisposable[] = [];
     let bridge: PtyBridge | null = null;
 
-    const activityDetector = new ActivityDetector((activity) => {
-      updatePaneActivity(paneId, activity);
-    });
+    const activityDetector = new ActivityDetector(
+      (activity) => {
+        updatePaneActivity(paneId, activity);
+      },
+      (pending) => {
+        updatePaneApproval(paneId, pending);
+      },
+    );
     const folderTrust =
       agentProfileId === "claude" ? new ClaudeFolderTrustAutoAccept() : null;
     const workspaceDetector = new WorkspaceDetector(onWorkspacePath);
@@ -104,6 +112,9 @@ export function usePtyProcess({
 
     activityDetector.onStarting();
     updatePaneActivity(paneId, "starting");
+    // A fresh detector starts with no prompt pending, and says nothing until
+    // one shows up: whatever the previous process left must not linger.
+    updatePaneApproval(paneId, false);
 
     // Sentinel emitted by the profile args right before the shell fallback
     // replaces a dead agent (§2.3) — without it the fallback is invisible.
@@ -354,6 +365,7 @@ export function usePtyProcess({
     sessionId,
     unregisterPtyWriter,
     updatePaneActivity,
+    updatePaneApproval,
     updatePaneStatus,
   ]);
 

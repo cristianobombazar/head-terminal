@@ -5,6 +5,7 @@ import { PALETTE_ACTIONS } from "../../config/toolbar";
 import { exportDiagnosticBundle } from "../../core/export-diagnostic";
 import { runGhostGlyphDiagnostic } from "../../core/ghost-glyph-diagnostic";
 import { logError } from "../../core/logger";
+import { toggleActivePaneMinimized } from "../../core/pane-minimize";
 import { useSessionStore } from "../../core/session-manager";
 import { formatShortcut } from "../../core/shortcuts";
 import { closePaneWithWorktreeReview } from "../../core/worktree";
@@ -120,6 +121,8 @@ export function CommandPalette({
         splitActivePane("horizontal");
       } else if (command === "__toggle_maximize_pane__") {
         toggleMaximizedActivePane();
+      } else if (command === "__toggle_minimize_pane__") {
+        toggleActivePaneMinimized();
       } else if (command === "__close_pane__") {
         if (activePaneId) {
           void closePaneWithWorktreeReview(activePaneId);

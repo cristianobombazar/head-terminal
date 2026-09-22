@@ -59,7 +59,13 @@ export class ActivityDetector {
   // suppress the fallback for genuine later work.
   private suppressWorkFallback = false;
 
-  constructor(private readonly onActivityChange: (activity: PaneActivity) => void) {}
+  /** `onApprovalChange` tells a "waiting_input" that is an approval prompt
+   * apart from one that is just the agent back at its prompt, which the
+   * activity alone cannot say. */
+  constructor(
+    private readonly onActivityChange: (activity: PaneActivity) => void,
+    private readonly onApprovalChange?: (pending: boolean) => void,
+  ) {}
 
   onData(data: string | Uint8Array): void {
     const text = decodePtyData(data);
@@ -98,10 +104,12 @@ export class ActivityDetector {
   onAgentFallback(): void {
     this.agentFallback = true;
     this.clearIdleTimer();
+    this.setApprovalPending(false);
     this.setActivity("agent_fallback");
   }
 
   onStarting(): void {
+    this.setApprovalPending(false);
     this.setActivity("starting");
   }
 
@@ -124,11 +132,13 @@ export class ActivityDetector {
 
   onExit(exitCode: number): void {
     this.clearIdleTimer();
+    this.setApprovalPending(false);
     this.setActivity(exitCode === 0 ? "exited" : "error");
   }
 
   onError(): void {
     this.clearIdleTimer();
+    this.setApprovalPending(false);
     this.setActivity("error");
   }
 
@@ -141,8 +151,8 @@ export class ActivityDetector {
     // testing it alone covers matches that would otherwise require testing
     // the chunk separately.
     const tail = this.recentText.slice(-APPROVAL_TAIL_CHARS);
-    this.approvalPending = APPROVAL_PATTERNS.some((pattern) =>
-      pattern.test(tail),
+    this.setApprovalPending(
+      APPROVAL_PATTERNS.some((pattern) => pattern.test(tail)),
     );
     if (this.approvalPending) {
       return "waiting_input";
@@ -205,6 +215,15 @@ export class ActivityDetector {
         this.setActivity("idle");
       }
     }, IDLE_AFTER_MS);
+  }
+
+  private setApprovalPending(pending: boolean): void {
+    if (this.approvalPending === pending) {
+      return;
+    }
+
+    this.approvalPending = pending;
+    this.onApprovalChange?.(pending);
   }
 
   private setActivity(activity: PaneActivity): void {

@@ -120,6 +120,61 @@ describe("ActivityDetector", () => {
     expect(changes[changes.length - 1]).toBe("working");
   });
 
+  it("sinaliza a aprovação pendente separada do waiting_input comum", () => {
+    const approvals: boolean[] = [];
+    const detector = new ActivityDetector(
+      () => undefined,
+      (pending) => approvals.push(pending),
+    );
+
+    detector.onRunning();
+    detector.onData("⠋ Editing file...\n");
+    expect(approvals).toEqual([]);
+
+    detector.onData("Do you want to make this edit?\n❯ 1. Yes\n  2. No\n");
+    expect(approvals).toEqual([true]);
+
+    // Same prompt repainted: no news.
+    detector.onData("❯ 1. Yes\n");
+    expect(approvals).toEqual([true]);
+
+    detector.onData(`⠙ Running command...\n${"x".repeat(500)}`);
+    expect(approvals).toEqual([true, false]);
+  });
+
+  it("um agent de volta ao próprio prompt não é aprovação", () => {
+    const approvals: boolean[] = [];
+    const changes: string[] = [];
+    const detector = new ActivityDetector(
+      (activity) => changes.push(activity),
+      (pending) => approvals.push(pending),
+    );
+
+    detector.onRunning();
+    detector.onData("⠋ Working...\n");
+    detector.onData("Done. All tests pass.\n");
+    vi.advanceTimersByTime(3000);
+
+    expect(changes[changes.length - 1]).toBe("waiting_input");
+    expect(approvals).toEqual([]);
+  });
+
+  it("esquece a aprovação pendente quando o processo sai ou reinicia", () => {
+    const approvals: boolean[] = [];
+    const detector = new ActivityDetector(
+      () => undefined,
+      (pending) => approvals.push(pending),
+    );
+
+    detector.onRunning();
+    detector.onData("Do you want to proceed?\n❯ 1. Yes\n");
+    detector.onExit(0);
+    expect(approvals).toEqual([true, false]);
+
+    detector.onStarting();
+    expect(approvals).toEqual([true, false]);
+  });
+
   it("marks error on non-zero exit", () => {
     const changes: string[] = [];
     const detector = new ActivityDetector((activity) => changes.push(activity));

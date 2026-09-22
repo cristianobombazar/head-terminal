@@ -19,6 +19,7 @@ import {
 } from "../../core/session-manager";
 import { NEW_CONVERSATION_LABEL } from "../../core/conversation-display";
 import { collectPaneIds, findPaneNode } from "../../core/session-layout";
+import { minimizePaneWithMotion } from "../../core/pane-minimize";
 import { basenamePath } from "../../core/path-utils";
 import { formatShortcut } from "../../core/shortcuts";
 import { isolatePaneInWorktree } from "../../core/worktree";
@@ -39,6 +40,7 @@ import {
   IconGitBranch,
   IconMaximize,
   IconMinimize,
+  IconMinimizeToDock,
   IconRefresh,
   IconSplitHorizontal,
   IconSplitVertical,
@@ -68,7 +70,7 @@ const AGENT_LABEL: Record<string, string> = {
   shell: "sh",
 };
 
-function AgentIcon({
+export function AgentIcon({
   agentProfileId,
   size = 14,
 }: {
@@ -79,7 +81,7 @@ function AgentIcon({
   return <Icon size={size} />;
 }
 
-function paneShortLabel(agentProfileId: string, paneIndex: number): string {
+export function paneShortLabel(agentProfileId: string, paneIndex: number): string {
   const prefix = AGENT_LABEL[agentProfileId] ?? agentProfileId.slice(0, 3);
   return `${prefix}${paneIndex + 1}`;
 }
@@ -367,6 +369,7 @@ interface TerminalPaneHeaderProps {
   claudeAccountId?: string;
   paneIndex: number;
   paneCount: number;
+  onScreenPaneCount: number;
   isActive: boolean;
   isMaximized: boolean;
   onFocus: () => void;
@@ -380,6 +383,7 @@ export function TerminalPaneHeader({
   claudeAccountId,
   paneIndex,
   paneCount,
+  onScreenPaneCount,
   isActive,
   isMaximized,
   onFocus,
@@ -497,7 +501,7 @@ export function TerminalPaneHeader({
         {gitContext?.repoRoot && !ownsWorktree && (
           <PaneIsolateButton paneId={paneId} />
         )}
-        {(paneCount > 1 || isMaximized) && (
+        {(onScreenPaneCount > 1 || isMaximized) && (
           <button
             type="button"
             className={
@@ -564,6 +568,18 @@ export function TerminalPaneHeader({
           }}
         >
           <IconRefresh size={13} />
+        </button>
+        <button
+          type="button"
+          className="terminal-pane-header__action"
+          title={`Minimizar (${formatShortcut("Ctrl+Shift+M")}): sai da tela e o agent segue rodando; o status fica num card da sessão`}
+          aria-label={`Minimizar ${shortLabel}`}
+          onClick={(event) => {
+            event.stopPropagation();
+            minimizePaneWithMotion(paneId);
+          }}
+        >
+          <IconMinimizeToDock size={13} />
         </button>
         {paneCount > 1 && (
           <button

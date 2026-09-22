@@ -1,5 +1,13 @@
-import { useRef, useState, type CSSProperties } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 
+import { landPaneMotion } from "../../core/pane-minimize";
+import { useSessionStore } from "../../core/session-manager";
 import { loadPaneHeadersEnabled } from "../../core/ui-preferences";
 import { getTerminal } from "../../core/terminal-registry";
 import { useAgentSession } from "../../hooks/useAgentSession";
@@ -22,11 +30,16 @@ interface TerminalPaneProps {
   isVisible: boolean;
   shouldSpawn: boolean;
   isActive: boolean;
-  /** Another pane is maximized: this one stays live but off-screen. */
+  /** Off the canvas but live: another pane is maximized, or this one is
+   * minimized. */
   isParked: boolean;
+  /** In the session's dock (see MinimizedPaneDock). */
+  isMinimized: boolean;
   isMaximized: boolean;
   paneIndex: number;
   paneCount: number;
+  /** Panes of the session on the canvas, i.e. not minimized. */
+  onScreenPaneCount: number;
   layoutStyle?: CSSProperties;
   searchOpen: boolean;
   onCloseSearch: () => void;
@@ -48,18 +61,50 @@ export function TerminalPane({
   shouldSpawn,
   isActive,
   isParked,
+  isMinimized,
   isMaximized,
   paneIndex,
   paneCount,
+  onScreenPaneCount,
   layoutStyle,
   searchOpen,
   onCloseSearch,
   onFocus,
   onClose,
 }: TerminalPaneProps) {
+  const shellRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const wasMinimizedRef = useRef(isMinimized);
   const showHeader = loadPaneHeadersEnabled();
   const [searchQuery, setSearchQuery] = useState("");
+
+  // A minimized terminal must not keep the keyboard: typing would land in an
+  // agent nobody can see. Child effects run before AppShell's, which then
+  // hands the focus to the pane that became active, if any is left.
+  useEffect(() => {
+    const focused = document.activeElement;
+    if (
+      isMinimized &&
+      focused instanceof HTMLElement &&
+      shellRef.current?.contains(focused)
+    ) {
+      focused.blur();
+    }
+  }, [isMinimized]);
+
+  // Back from the dock: fly in from the card, and take the keyboard — the
+  // pane may already have been the active one, so AppShell won't refocus.
+  useLayoutEffect(() => {
+    const wasMinimized = wasMinimizedRef.current;
+    wasMinimizedRef.current = isMinimized;
+    if (!wasMinimized || isMinimized) {
+      return;
+    }
+    landPaneMotion(paneId, "restore", shellRef.current);
+    if (useSessionStore.getState().activePaneId === paneId) {
+      requestAnimationFrame(() => getTerminal(paneId)?.terminal.focus());
+    }
+  }, [isMinimized, paneId]);
 
   useAgentSession({
     paneId,
@@ -87,7 +132,13 @@ export function TerminalPane({
     .join(" ");
 
   return (
-    <div className={shellClasses} style={layoutStyle} aria-hidden={isParked}>
+    <div
+      ref={shellRef}
+      className={shellClasses}
+      style={layoutStyle}
+      aria-hidden={isParked}
+      data-pane-shell={paneId}
+    >
       {showHeader && (
         <TerminalPaneHeader
           paneId={paneId}
@@ -96,6 +147,7 @@ export function TerminalPane({
           claudeAccountId={claudeAccountId}
           paneIndex={paneIndex}
           paneCount={paneCount}
+          onScreenPaneCount={onScreenPaneCount}
           isActive={isActive}
           isMaximized={isMaximized}
           onFocus={onFocus}

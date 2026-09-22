@@ -518,6 +518,12 @@
   border: 1.5px solid var(--status-exited);
 }
 
+/* Minimized terminal: same color, tucked down like a window in a dock. */
+.session-sidebar__pane-dot--minimized {
+  height: 3px;
+  margin-top: 3px;
+}
+
 /* Context menu (right-click on a session) */
 
 .session-context-menu {

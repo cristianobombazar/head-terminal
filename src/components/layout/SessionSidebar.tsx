@@ -16,6 +16,7 @@ import {
   getSessionActivitySince,
 } from "../../core/activity-utils";
 import { flipAnimate } from "../../core/flip-animate";
+import { restorePaneWithMotion } from "../../core/pane-minimize";
 import { samePath } from "../../core/path-utils";
 import { collectPaneIds } from "../../core/session-layout";
 import { useSessionStore } from "../../core/session-manager";
@@ -173,6 +174,9 @@ const SessionListItem = memo(function SessionListItem({
     paneDotsKey(paneIds, state.paneRuntime),
   );
   const paneActivities = dotsKey.split("|") as PaneActivity[];
+  const minimizedKey = useSessionStore((state) =>
+    paneIds.map((paneId) => (state.minimizedPanes[paneId] ? "1" : "0")).join(""),
+  );
 
   useEffect(() => {
     if (forceRename) {
@@ -331,18 +335,31 @@ const SessionListItem = memo(function SessionListItem({
             }
           >
             <span className="session-sidebar__pane-dots" aria-hidden>
-              {paneActivities.map((paneActivity, index) => (
-                <button
-                  key={paneIds[index]}
-                  type="button"
-                  className={`session-sidebar__pane-dot session-sidebar__pane-dot--${paneActivity}`}
-                  title={`Terminal ${index + 1} — ${ACTIVITY_LABEL[paneActivity]}`}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onSelectPane(paneIds[index]);
-                  }}
-                />
-              ))}
+              {paneActivities.map((paneActivity, index) => {
+                const minimized = minimizedKey[index] === "1";
+                return (
+                  <button
+                    key={paneIds[index]}
+                    type="button"
+                    className={
+                      `session-sidebar__pane-dot session-sidebar__pane-dot--${paneActivity}` +
+                      (minimized ? " session-sidebar__pane-dot--minimized" : "")
+                    }
+                    title={
+                      `Terminal ${index + 1} — ${ACTIVITY_LABEL[paneActivity]}` +
+                      (minimized ? " · minimizado, clique para restaurar" : "")
+                    }
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      if (minimized) {
+                        restorePaneWithMotion(paneIds[index]);
+                      } else {
+                        onSelectPane(paneIds[index]);
+                      }
+                    }}
+                  />
+                );
+              })}
             </span>
             <SessionStatusLine activity={activity} activitySince={activitySince} />
           </span>

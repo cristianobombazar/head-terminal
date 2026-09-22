@@ -68,7 +68,12 @@
   .status-dot--pulse,
   .session-sidebar__compact-item--ring-working,
   .session-sidebar__pane-dot--working,
-  .terminal-pane-header__context--critical {
+  .terminal-pane-header__context--critical,
+  .minimized-card,
+  .minimized-card::before,
+  .minimized-card__dot,
+  .minimized-card__progress::after,
+  .minimized-stage {
     animation: none;
   }
 

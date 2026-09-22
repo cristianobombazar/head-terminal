@@ -32,6 +32,16 @@ type Bounds = {
 
 const FULL_BOUNDS: Bounds = { top: 0, left: 0, width: 100, height: 100 };
 
+const NO_HIDDEN_PANES: ReadonlySet<string> = new Set();
+
+/** True when every pane under this node is off the canvas. */
+function isSubtreeHidden(node: LayoutNode, hidden: ReadonlySet<string>): boolean {
+  if (node.kind === "pane") {
+    return hidden.has(node.paneId);
+  }
+  return isSubtreeHidden(node.first, hidden) && isSubtreeHidden(node.second, hidden);
+}
+
 export function createPaneId(): string {
   return crypto.randomUUID();
 }
@@ -184,43 +194,82 @@ export function closePaneInLayout(
 export function collectPaneRects(
   node: LayoutNode,
   bounds: Bounds = FULL_BOUNDS,
+  hidden: ReadonlySet<string> = NO_HIDDEN_PANES,
 ): PaneRect[] {
   if (node.kind === "pane") {
-    return [{ paneId: node.paneId, ...bounds }];
+    return hidden.has(node.paneId) ? [] : [{ paneId: node.paneId, ...bounds }];
   }
 
   const { direction, ratio, first, second } = node;
 
+  // A side with nothing left on the canvas gives all of its room to the other
+  // one, as if it had been closed — but the split stays in the tree, so the
+  // pane comes back exactly where it was.
+  if (isSubtreeHidden(first, hidden)) {
+    return collectPaneRects(second, bounds, hidden);
+  }
+  if (isSubtreeHidden(second, hidden)) {
+    return collectPaneRects(first, bounds, hidden);
+  }
+
   if (direction === "horizontal") {
     const firstWidth = bounds.width * ratio;
     return [
-      ...collectPaneRects(first, { ...bounds, width: firstWidth }),
-      ...collectPaneRects(second, {
-        ...bounds,
-        left: bounds.left + firstWidth,
-        width: bounds.width - firstWidth,
-      }),
+      ...collectPaneRects(first, { ...bounds, width: firstWidth }, hidden),
+      ...collectPaneRects(
+        second,
+        {
+          ...bounds,
+          left: bounds.left + firstWidth,
+          width: bounds.width - firstWidth,
+        },
+        hidden,
+      ),
     ];
   }
 
   const firstHeight = bounds.height * ratio;
   return [
-    ...collectPaneRects(first, { ...bounds, height: firstHeight }),
-    ...collectPaneRects(second, {
-      ...bounds,
-      top: bounds.top + firstHeight,
-      height: bounds.height - firstHeight,
-    }),
+    ...collectPaneRects(first, { ...bounds, height: firstHeight }, hidden),
+    ...collectPaneRects(
+      second,
+      {
+        ...bounds,
+        top: bounds.top + firstHeight,
+        height: bounds.height - firstHeight,
+      },
+      hidden,
+    ),
   ];
+}
+
+/** Where the panes still on the canvas go when the `hidden` ones (minimized)
+ * leave it. Hidden panes get no rect. */
+export function collectVisiblePaneRects(
+  layout: LayoutNode,
+  hidden: ReadonlySet<string>,
+): PaneRect[] {
+  return collectPaneRects(layout, FULL_BOUNDS, hidden);
 }
 
 export function collectSplitDividers(
   node: LayoutNode,
   bounds: Bounds = FULL_BOUNDS,
   path: number[] = [],
+  hidden: ReadonlySet<string> = NO_HIDDEN_PANES,
 ): LayoutDividerDescriptor[] {
   if (node.kind === "pane") {
     return [];
+  }
+
+  // A split with one side off the canvas divides nothing on screen. The side
+  // left keeps its path in the real tree, so dragging one of its dividers
+  // still updates the right ratio.
+  if (isSubtreeHidden(node.first, hidden)) {
+    return collectSplitDividers(node.second, bounds, [...path, 1], hidden);
+  }
+  if (isSubtreeHidden(node.second, hidden)) {
+    return collectSplitDividers(node.first, bounds, [...path, 0], hidden);
   }
 
   const { direction, ratio, first, second } = node;
@@ -239,6 +288,7 @@ export function collectSplitDividers(
         first,
         { ...bounds, width: firstWidth },
         [...path, 0],
+        hidden,
       ),
       ...collectSplitDividers(
         second,
@@ -248,6 +298,7 @@ export function collectSplitDividers(
           width: bounds.width - firstWidth,
         },
         [...path, 1],
+        hidden,
       ),
     ];
   }
@@ -259,6 +310,7 @@ export function collectSplitDividers(
       first,
       { ...bounds, height: firstHeight },
       [...path, 0],
+      hidden,
     ),
     ...collectSplitDividers(
       second,
@@ -268,8 +320,18 @@ export function collectSplitDividers(
         height: bounds.height - firstHeight,
       },
       [...path, 1],
+      hidden,
     ),
   ];
+}
+
+/** The dividers between the panes still on the canvas (see
+ * `collectVisiblePaneRects`). */
+export function collectVisibleSplitDividers(
+  layout: LayoutNode,
+  hidden: ReadonlySet<string>,
+): LayoutDividerDescriptor[] {
+  return collectSplitDividers(layout, FULL_BOUNDS, [], hidden);
 }
 
 export function updateSplitRatioInLayout(

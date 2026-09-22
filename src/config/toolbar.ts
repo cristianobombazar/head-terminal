@@ -66,6 +66,14 @@ export const PALETTE_ACTIONS: ToolbarCommand[] = [
       "Mostra só o terminal ativo na área da sessão, ou traz os outros de volta",
   },
   {
+    id: "toggle-minimize-pane",
+    label: "Minimizar terminal",
+    command: "__toggle_minimize_pane__",
+    shortcut: "Ctrl+Shift+M",
+    description:
+      "Tira o terminal ativo da tela sem parar o agent; o status dele fica num card da sessão até restaurar",
+  },
+  {
     id: "close-pane",
     label: "Fechar terminal",
     command: "__close_pane__",

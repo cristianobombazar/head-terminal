@@ -686,3 +686,187 @@ describe("useSessionStore maximized pane", () => {
     expect(useSessionStore.getState().maximizedPaneIds[sessionId]).toBeUndefined();
   });
 });
+
+describe("useSessionStore minimized panes", () => {
+  beforeEach(() => {
+    const storage = new Map<string, string>();
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => storage.set(key, value),
+      removeItem: (key: string) => storage.delete(key),
+    });
+    useSessionStore.setState(useSessionStore.getInitialState(), true);
+  });
+
+  function withSplitSession(sessionId = "s") {
+    const created = session(sessionId);
+    useSessionStore.getState().addSession(created);
+    const [first] = collectPaneIds(created.layout);
+    useSessionStore.getState().setActivePaneId(first);
+    useSessionStore.getState().splitActivePane("vertical");
+    const stored = useSessionStore
+      .getState()
+      .sessions.find((item) => item.id === sessionId)!;
+    const [, second] = collectPaneIds(stored.layout);
+    return { sessionId, first, second };
+  }
+
+  it("minimizes a pane and hands the keyboard to one still on screen", () => {
+    const { first, second } = withSplitSession();
+    useSessionStore.getState().setActivePaneId(second);
+
+    useSessionStore.getState().minimizePane(second);
+
+    const state = useSessionStore.getState();
+    expect(state.minimizedPanes[second]).toBeDefined();
+    expect(state.activePaneId).toBe(first);
+  });
+
+  it("keeps the last pane active when every pane is minimized", () => {
+    const created = session("solo");
+    useSessionStore.getState().addSession(created);
+    const [only] = collectPaneIds(created.layout);
+
+    useSessionStore.getState().minimizePane(only);
+
+    expect(useSessionStore.getState().minimizedPanes[only]).toBeDefined();
+    expect(useSessionStore.getState().activePaneId).toBe(only);
+  });
+
+  it("restores a pane into its session and makes it the active one", () => {
+    const { sessionId, first, second } = withSplitSession();
+    useSessionStore.getState().minimizePane(second);
+    useSessionStore.getState().addSession(session("other"));
+
+    useSessionStore.getState().restorePane(second);
+
+    const state = useSessionStore.getState();
+    expect(state.minimizedPanes[second]).toBeUndefined();
+    expect(state.activeSessionId).toBe(sessionId);
+    expect(state.activePaneId).toBe(second);
+    expect(state.minimizedPanes[first]).toBeUndefined();
+  });
+
+  it("ignores minimizing a pane twice or one that does not exist", () => {
+    const { second } = withSplitSession();
+    useSessionStore.getState().minimizePane(second);
+    const minimized = useSessionStore.getState().minimizedPanes;
+
+    useSessionStore.getState().minimizePane(second);
+    useSessionStore.getState().minimizePane("missing");
+
+    expect(useSessionStore.getState().minimizedPanes).toBe(minimized);
+  });
+
+  it("remembers when a minimized agent stops working, until it works again", () => {
+    const { second } = withSplitSession();
+    const { updatePaneActivity } = useSessionStore.getState();
+    updatePaneActivity(second, "working");
+    useSessionStore.getState().minimizePane(second);
+    expect(useSessionStore.getState().minimizedPanes[second].finishedAt).toBeUndefined();
+
+    updatePaneActivity(second, "waiting_input");
+    const finishedAt = useSessionStore.getState().minimizedPanes[second].finishedAt;
+    expect(finishedAt).toBeTypeOf("number");
+
+    updatePaneActivity(second, "idle");
+    expect(useSessionStore.getState().minimizedPanes[second].finishedAt).toBe(finishedAt);
+
+    updatePaneActivity(second, "working");
+    expect(useSessionStore.getState().minimizedPanes[second].finishedAt).toBeUndefined();
+  });
+
+  it("does not track anything for panes on screen", () => {
+    const { second } = withSplitSession();
+    useSessionStore.getState().updatePaneActivity(second, "working");
+    useSessionStore.getState().updatePaneActivity(second, "idle");
+
+    expect(useSessionStore.getState().minimizedPanes[second]).toBeUndefined();
+  });
+
+  it("drops the minimized state of a closed pane or removed session", () => {
+    const { sessionId, first, second } = withSplitSession();
+    useSessionStore.getState().minimizePane(second);
+    useSessionStore.getState().closePane(second);
+    expect(useSessionStore.getState().minimizedPanes[second]).toBeUndefined();
+
+    useSessionStore.getState().minimizePane(first);
+    useSessionStore.getState().removeSession(sessionId);
+    expect(useSessionStore.getState().minimizedPanes[first]).toBeUndefined();
+  });
+
+  it("puts the keyboard on a pane on screen when a session is picked", () => {
+    const { sessionId, first, second } = withSplitSession();
+    useSessionStore.getState().minimizePane(first);
+    useSessionStore.getState().addSession(session("other"));
+
+    useSessionStore.getState().setActiveSessionId(sessionId);
+
+    expect(useSessionStore.getState().activePaneId).toBe(second);
+  });
+
+  it("drops the zoom when the zoomed pane or the last pane left beside it is minimized", () => {
+    const { sessionId, first, second } = withSplitSession();
+    useSessionStore.getState().toggleMaximizedPane(second);
+    useSessionStore.getState().minimizePane(second);
+    expect(useSessionStore.getState().maximizedPaneIds[sessionId]).toBeUndefined();
+
+    useSessionStore.getState().restorePane(second);
+    useSessionStore.getState().toggleMaximizedPane(first);
+    useSessionStore.getState().minimizePane(second);
+    expect(useSessionStore.getState().maximizedPaneIds[sessionId]).toBeUndefined();
+  });
+
+  it("does not zoom while only one pane is on screen", () => {
+    const { sessionId, first, second } = withSplitSession();
+    useSessionStore.getState().minimizePane(second);
+
+    useSessionStore.getState().toggleMaximizedPane(first);
+    useSessionStore.getState().toggleMaximizedPane(second);
+
+    expect(useSessionStore.getState().maximizedPaneIds[sessionId]).toBeUndefined();
+  });
+
+  it("restoring a pane drops a zoom that would keep it hidden", () => {
+    const created = session("three");
+    useSessionStore.getState().addSession(created);
+    const [a] = collectPaneIds(created.layout);
+    useSessionStore.getState().setActivePaneId(a);
+    useSessionStore.getState().splitActivePane("vertical");
+    useSessionStore.getState().splitActivePane("horizontal");
+    const [, zoomed, minimized] = collectPaneIds(
+      useSessionStore.getState().sessions.find((item) => item.id === "three")!.layout,
+    );
+    useSessionStore.getState().minimizePane(minimized);
+    useSessionStore.getState().toggleMaximizedPane(zoomed);
+    expect(useSessionStore.getState().maximizedPaneIds.three).toBe(zoomed);
+
+    useSessionStore.getState().restorePane(minimized);
+
+    expect(useSessionStore.getState().maximizedPaneIds.three).toBeUndefined();
+  });
+
+  it("splitting a minimized active pane moves the keyboard to the new one", () => {
+    const created = session("solo");
+    useSessionStore.getState().addSession(created);
+    const [only] = collectPaneIds(created.layout);
+    useSessionStore.getState().minimizePane(only);
+
+    useSessionStore.getState().splitActivePane("vertical");
+
+    const layout = useSessionStore.getState().sessions[0].layout;
+    const [, added] = collectPaneIds(layout);
+    expect(useSessionStore.getState().activePaneId).toBe(added);
+    expect(useSessionStore.getState().minimizedPanes[only]).toBeDefined();
+  });
+
+  it("tracks an approval prompt per pane and clears it on restart", () => {
+    const { second } = withSplitSession();
+    useSessionStore.getState().updatePaneApproval(second, true);
+    expect(useSessionStore.getState().paneRuntime[second].awaitingApproval).toBe(true);
+
+    useSessionStore.getState().restartPane(second);
+
+    expect(useSessionStore.getState().paneRuntime[second].awaitingApproval).toBe(false);
+  });
+});

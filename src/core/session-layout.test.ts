@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 
+import type { LayoutNode } from "../types/session";
 import {
   collectPaneIds,
+  collectPaneRects,
+  collectSplitDividers,
+  collectVisiblePaneRects,
+  collectVisibleSplitDividers,
   createInitialLayout,
   createPaneId,
   findPaneNode,
@@ -69,5 +74,80 @@ describe("pane folders in the layout", () => {
       first: { kind: "pane", paneId: "a" },
       second: { kind: "pane", paneId: "b" },
     });
+  });
+});
+
+describe("layout with minimized panes", () => {
+  // a | (b / c), with b over c.
+  const layout: LayoutNode = {
+    kind: "split",
+    direction: "horizontal",
+    ratio: 0.4,
+    first: { kind: "pane", paneId: "a" },
+    second: {
+      kind: "split",
+      direction: "vertical",
+      ratio: 0.25,
+      first: { kind: "pane", paneId: "b" },
+      second: { kind: "pane", paneId: "c" },
+    },
+  };
+
+  it("is the full layout when nothing is hidden", () => {
+    expect(collectVisiblePaneRects(layout, new Set())).toEqual(collectPaneRects(layout));
+    expect(collectVisibleSplitDividers(layout, new Set())).toEqual(
+      collectSplitDividers(layout),
+    );
+  });
+
+  it("gives a hidden pane's room to its sibling", () => {
+    expect(collectVisiblePaneRects(layout, new Set(["b"]))).toEqual([
+      { paneId: "a", top: 0, left: 0, width: 40, height: 100 },
+      { paneId: "c", top: 0, left: 40, width: 60, height: 100 },
+    ]);
+  });
+
+  it("gives a whole hidden side to the other one", () => {
+    expect(collectVisiblePaneRects(layout, new Set(["b", "c"]))).toEqual([
+      { paneId: "a", top: 0, left: 0, width: 100, height: 100 },
+    ]);
+    expect(collectVisiblePaneRects(layout, new Set(["a"]))).toEqual([
+      { paneId: "b", top: 0, left: 0, width: 100, height: 25 },
+      { paneId: "c", top: 25, left: 0, width: 100, height: 75 },
+    ]);
+  });
+
+  it("has nothing to lay out when every pane is hidden", () => {
+    const hidden = new Set(["a", "b", "c"]);
+    expect(collectVisiblePaneRects(layout, hidden)).toEqual([]);
+    expect(collectVisibleSplitDividers(layout, hidden)).toEqual([]);
+  });
+
+  it("keeps each divider's path into the real tree", () => {
+    // With a hidden, only b/c is split on screen: it spans the canvas but is
+    // still the second child of the root, so a drag updates that ratio.
+    expect(collectVisibleSplitDividers(layout, new Set(["a"]))).toEqual([
+      {
+        path: [1],
+        direction: "vertical",
+        ratio: 0.25,
+        top: 0,
+        left: 0,
+        width: 100,
+        height: 100,
+      },
+    ]);
+    // A split with one side gone divides nothing.
+    expect(collectVisibleSplitDividers(layout, new Set(["c"]))).toEqual([
+      {
+        path: [],
+        direction: "horizontal",
+        ratio: 0.4,
+        top: 0,
+        left: 0,
+        width: 100,
+        height: 100,
+      },
+    ]);
   });
 });

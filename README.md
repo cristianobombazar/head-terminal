@@ -7,6 +7,7 @@ Desktop terminal for working with several AI coding agents in parallel. The appl
 - persisted sessions, pinning, renaming, reordering and quick switching;
 - resizable horizontal and vertical splits, each with its own PTY;
 - lazy spawn, per-pane restart and scrollback preservation;
+- minimizing a pane (the `—` in its header) takes it off the session's area while its agent keeps running: a card in the session says whether it is still working, finished, or stopped on an approval, and brings it back on click. The pty keeps its size meanwhile, so the agent never sees a resize;
 - the agent conversation a pane is on is shown in its header, renamable by hand, and the name also applies in the resume list;
 - Antigravity, Cursor Agent, Claude Code, Codex and shell profiles;
 - multiple Claude accounts, each in its own `~/.head-terminal/claude-profiles/<id>` (the user's own `~/.claude` is never used by a pane, so logging in inside the app never changes the account of a terminal opened outside it);
@@ -231,6 +232,7 @@ sudo apt install ./out/make/deb/x64/head-terminal_*.deb
 | `Ctrl+Tab` / `Ctrl+Shift+Tab` | next / previous session |
 | `Ctrl+1..9` | select session |
 | `Ctrl+Shift+L` | `/clear` in the active terminal or in all of them |
+| `Ctrl+Shift+M` | minimize the active terminal, or bring back the last one when all are minimized |
 
 On macOS `Ctrl` reads as `⌘` in every row except `Ctrl+Tab`, and the app shows
 the shortcuts that way (`⌘⇧P`). The `Split ↓` and `Split →` buttons split the active pane. “Run everything” sends toolbar commands to every pane in the session.

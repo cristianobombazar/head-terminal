@@ -5,6 +5,7 @@ import { fitPanes } from "../core/pane-fit-registry";
 import { useSessionStore } from "../core/session-manager";
 import { closePaneWithWorktreeReview } from "../core/worktree";
 import { notifySessionAttention } from "../core/notifications";
+import { toggleActivePaneMinimized } from "../core/pane-minimize";
 import { hasPrimaryModifier } from "../core/shortcuts";
 import { forEachTerminal } from "../core/terminal-registry";
 import {
@@ -179,6 +180,24 @@ export function useKeyboardShortcuts(options: {
       ) {
         event.preventDefault();
         toggleMaximizedActivePane();
+        return;
+      }
+
+      // xterm turns Ctrl+letter into a control character (Ctrl+M is Enter),
+      // but not with Shift held: this reaches here without typing anything.
+      // And it arrives from xterm's own textarea, where the keyboard sits
+      // nearly all the time — that one is the terminal, not a text field.
+      const fromTerminal =
+        target instanceof HTMLTextAreaElement &&
+        target.classList.contains("xterm-helper-textarea");
+      if (
+        (!isInput || fromTerminal) &&
+        mod &&
+        event.shiftKey &&
+        event.key.toLowerCase() === "m"
+      ) {
+        event.preventDefault();
+        toggleActivePaneMinimized();
         return;
       }
 

@@ -1,6 +1,7 @@
 // Barrel over lucide-react so swapping the icon set later touches one file.
 import {
   Activity,
+  ArrowUpFromLine,
   ChevronDown,
   Command,
   Bird,
@@ -15,6 +16,7 @@ import {
   MemoryStick,
   Mic,
   Minimize2,
+  Minus,
   PanelLeftClose,
   PanelLeftOpen,
   Pencil,
@@ -53,6 +55,16 @@ export function IconMaximize({ className, size = 14 }: IconProps) {
 
 export function IconMinimize({ className, size = 14 }: IconProps) {
   return <Minimize2 className={className} size={size} aria-hidden />;
+}
+
+/** Minimize a terminal into its session's dock (not the zoom's "restore"). */
+export function IconMinimizeToDock({ className, size = 14 }: IconProps) {
+  return <Minus className={className} size={size} aria-hidden />;
+}
+
+/** Bring a minimized terminal back up from the dock. */
+export function IconRestoreFromDock({ className, size = 14 }: IconProps) {
+  return <ArrowUpFromLine className={className} size={size} aria-hidden />;
 }
 
 export function IconCommand({ className, size = 14 }: IconProps) {
