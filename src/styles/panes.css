@@ -708,16 +708,25 @@
      only subtracts *this* element's own padding — padding on the parent is
      invisible to it. Padding on the parent caused FitAddon to compute one row
      too many, pushing the last row (often the agent's status/footer line)
-     past the pane's overflow:hidden boundary and clipping it. */
+     past the pane's overflow:hidden boundary and clipping it.
+     None on the right: the fit already keeps the scrollbar's strip free of
+     glyphs, and that strip is the right margin — padding on top of it only
+     cost columns and left the text off-center. */
   height: 100%;
   padding: var(--terminal-padding);
+  padding-right: 0;
 }
 
+/* xterm 6 scrolls with its own element (.xterm-scrollable-element, painted
+   in the theme background), but still creates this legacy viewport over the
+   whole .xterm box, and xterm.css paints it #000. Around the scrollable
+   element — the padding, the sliver under the last row — it showed as a
+   black frame inside every pane. Transparent, the pane's own terminal
+   background shows through; `auto` keeps xterm.css's `scroll` from drawing
+   an empty native scrollbar track. */
 .terminal-pane .xterm-viewport {
   overflow-y: auto;
-  /* Reserve gutter so agent footers (e.g. Claude "Run Everything") are not
-     drawn under the vertical scrollbar. */
-  scrollbar-gutter: stable;
+  background-color: transparent;
 }
 
 /* Status bar — a quiet caption under the panes, not another card: it only
