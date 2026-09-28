@@ -15,6 +15,7 @@ import {
   pasteClipboardIntoTerminal,
 } from "./terminal-clipboard";
 import { isMacHost } from "./platform-info";
+import { splitShortcutDirection } from "./shortcuts";
 
 const SCROLLBACK = 5000;
 /**
@@ -98,6 +99,12 @@ export function createConfiguredTerminal(): ConfiguredTerminal {
 
     if (event.type !== "keydown") {
       return true;
+    }
+
+    // Same for Ctrl+\: xterm would send it as FS (the shell's SIGQUIT) and
+    // keep it, and the split shortcut never reached the app from a pane.
+    if (splitShortcutDirection(event)) {
+      return false;
     }
 
     const mod = event.ctrlKey || event.metaKey;

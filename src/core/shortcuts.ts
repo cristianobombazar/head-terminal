@@ -18,6 +18,26 @@ export function hasPrimaryModifier(
   return mac ? event.metaKey : event.ctrlKey;
 }
 
+/**
+ * The split a keydown asks for — `Ctrl+\` below, `Ctrl+Shift+\` beside — or
+ * `null`. Shift turns the key into `|` on most layouts, so both spellings
+ * count. Alt never does: AltGr arrives as Ctrl+Alt on Windows, and AltGr+ß is
+ * how a German keyboard types `\`.
+ */
+export function splitShortcutDirection(
+  event: Pick<KeyboardEvent, "ctrlKey" | "metaKey" | "altKey" | "shiftKey" | "key">,
+  mac: boolean = isMacHost(),
+): "vertical" | "horizontal" | null {
+  if (
+    !hasPrimaryModifier(event, mac) ||
+    event.altKey ||
+    (event.key !== "\\" && event.key !== "|")
+  ) {
+    return null;
+  }
+  return event.shiftKey ? "horizontal" : "vertical";
+}
+
 const MAC_MODIFIER_SYMBOLS: Record<string, string> = {
   ctrl: "⌘",
   cmd: "⌘",

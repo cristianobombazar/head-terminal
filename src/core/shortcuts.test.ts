@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { formatShortcut, hasPrimaryModifier, matchesShortcut } from "./shortcuts";
+import {
+  formatShortcut,
+  hasPrimaryModifier,
+  matchesShortcut,
+  splitShortcutDirection,
+} from "./shortcuts";
 
 function keyEvent(init: Partial<KeyboardEvent> & { key: string }): KeyboardEvent {
   return {
@@ -96,5 +101,36 @@ describe("matchesShortcut", () => {
         true,
       ),
     ).toBe(true);
+  });
+});
+
+describe("splitShortcutDirection", () => {
+  it("splits below with Ctrl+\\ and beside with Ctrl+Shift+\\, however Shift spells the key", () => {
+    expect(splitShortcutDirection(keyEvent({ key: "\\", ctrlKey: true }), false)).toBe("vertical");
+    expect(
+      splitShortcutDirection(keyEvent({ key: "|", ctrlKey: true, shiftKey: true }), false),
+    ).toBe("horizontal");
+    expect(
+      splitShortcutDirection(keyEvent({ key: "\\", ctrlKey: true, shiftKey: true }), false),
+    ).toBe("horizontal");
+  });
+
+  it("reads Ctrl as Command on macOS", () => {
+    expect(splitShortcutDirection(keyEvent({ key: "\\", metaKey: true }), true)).toBe("vertical");
+    expect(
+      splitShortcutDirection(keyEvent({ key: "|", metaKey: true, shiftKey: true }), true),
+    ).toBe("horizontal");
+    expect(splitShortcutDirection(keyEvent({ key: "\\", ctrlKey: true }), true)).toBeNull();
+  });
+
+  it("leaves AltGr alone, which is how some layouts type a backslash", () => {
+    expect(
+      splitShortcutDirection(keyEvent({ key: "\\", ctrlKey: true, altKey: true }), false),
+    ).toBeNull();
+  });
+
+  it("needs the primary modifier", () => {
+    expect(splitShortcutDirection(keyEvent({ key: "\\" }), false)).toBeNull();
+    expect(splitShortcutDirection(keyEvent({ key: "|", shiftKey: true }), false)).toBeNull();
   });
 });
