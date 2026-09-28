@@ -347,6 +347,13 @@ export interface HeadTerminalApi {
     /** Saves the pick and switches main to it; resolves to the language to
      * switch the renderer to ("auto" resolved against the machine). */
     setLanguage(preference: LanguagePreference): Promise<Locale>;
+    /** A folder sent from outside the app (Finder's Services menu, the Dock
+     * icon) to start a session in. */
+    onOpenFolder(callback: (folder: string) => void): Unsubscribe;
+    /** The folder that arrived before the renderer was listening, if any.
+     * Subscribe to `onOpenFolder` first: from this call on, main sends the
+     * next ones there. */
+    takePendingFolder(): Promise<string | null>;
   };
   terminal: {
     spawn(input: SpawnPtyInput): Promise<PtyHandle>;

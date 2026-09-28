@@ -173,7 +173,7 @@ describe("Electron IPC contract", () => {
     const channels = flattenChannels(IPC_CHANNELS);
 
     expect(new Set(channels).size).toBe(channels.length);
-    expect(channels).toHaveLength(66);
+    expect(channels).toHaveLength(68);
     expect(channels.every((channel) => /^[a-z][a-z-]*:[a-z][a-z-]*$/.test(channel))).toBe(true);
   });
 
@@ -182,6 +182,7 @@ describe("Electron IPC contract", () => {
     const remove = registerIpc({ window: harness.window });
     const mainToRendererOnly = new Set([
       IPC_CHANNELS.app.closeRequested,
+      IPC_CHANNELS.app.openFolder,
       IPC_CHANNELS.terminal.data,
       IPC_CHANNELS.terminal.exit,
       IPC_CHANNELS.terminal.agent,

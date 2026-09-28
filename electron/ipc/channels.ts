@@ -6,6 +6,8 @@ export const IPC_CHANNELS = {
     respondToClose: "app:respond-to-close",
     closeRequested: "app:close-requested",
     setLanguage: "app:set-language",
+    openFolder: "app:open-folder",
+    takePendingFolder: "app:take-pending-folder",
   },
   terminal: {
     spawn: "terminal:spawn",

@@ -28,6 +28,7 @@ import { registerIpc, type IpcServices } from "./ipc/register";
 import { buildMacApplicationMenu } from "./mac-menu";
 import { adoptLoginShellPath } from "./services/shell-env";
 import { AgentHookServer } from "./services/agent-hook-server";
+import { FolderInbox, resolveOpenedFolder } from "./services/folder-inbox";
 import {
   listResumableSessions,
   resolveAgentSessionRoots,
@@ -175,6 +176,7 @@ if (!gotSingleInstanceLock) {
   let quitAfterWindowClose = false;
   let disposeServices: (() => Promise<void>) | null = null;
   let services: IpcServices | null = null;
+  const folderInbox = new FolderInbox();
 
   const requestSignalShutdown = () => app.quit();
   process.on("SIGTERM", requestSignalShutdown);
@@ -199,12 +201,14 @@ if (!gotSingleInstanceLock) {
       isQuitting: () => isQuitting,
       runId: RUN_ID,
       onLocaleChange: applyLocale,
+      takePendingFolder: (deliver) => folderInbox.attach(deliver),
     });
     // On macOS the app outlives its window (closed from the red button, back
     // from the Dock): drop the IPC bindings and the reference, so `activate`
     // and `second-instance` open a fresh window instead of focusing a ghost.
     window.once("closed", () => {
       unregisterIpc();
+      folderInbox.detach();
       if (mainWindow === window) mainWindow = null;
       // The window was closed on the way out of ⌘Q; now the quit can proceed.
       if (quitAfterWindowClose) {
@@ -214,6 +218,23 @@ if (!gotSingleInstanceLock) {
     });
     loadRenderer(window);
   };
+
+  // A folder sent from outside: Finder's "New Head Terminal Session Here"
+  // (scripts/install-finder-service.sh) or a folder dropped on the Dock icon.
+  // `open -a` delivers it as `open-file` — on a cold launch before `ready` —
+  // so the listener goes up now, and the inbox holds the folder until the
+  // renderer asks for it: it opens the new-session dialog there.
+  app.on("open-file", (event, target) => {
+    // Handled here; left alone, AppKit answers with a "could not be opened" alert.
+    event.preventDefault();
+    void resolveOpenedFolder(target).then((folder) => {
+      const kept = folder !== null && !folderInbox.receive(folder);
+      // Running without a window (closed from the red button): one opens to
+      // take the folder. Before `ready`, the startup window takes it.
+      if (kept && services && (!mainWindow || mainWindow.isDestroyed())) openMainWindow();
+      else focusMainWindow();
+    });
+  });
 
   // ponytail: processo pode sobreviver sem janela; reabre em vez de ignorar o clique
   app.on("second-instance", () => {

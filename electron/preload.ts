@@ -87,6 +87,8 @@ const api: HeadTerminalApi = {
     onCloseRequested: (callback) =>
       subscribe(IPC_CHANNELS.app.closeRequested, callback),
     setLanguage: (preference) => ipcRenderer.invoke(IPC_CHANNELS.app.setLanguage, preference),
+    onOpenFolder: (callback) => subscribe<string>(IPC_CHANNELS.app.openFolder, callback),
+    takePendingFolder: () => ipcRenderer.invoke(IPC_CHANNELS.app.takePendingFolder),
   },
   terminal: {
     spawn: (input) => ipcRenderer.invoke(IPC_CHANNELS.terminal.spawn, input),

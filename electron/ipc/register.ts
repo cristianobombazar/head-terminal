@@ -190,6 +190,9 @@ export interface RegisterIpcOptions {
   runId?: string;
   /** Main's side of a language switch picked in Settings (menu, dialogs). */
   onLocaleChange?: (locale: Locale) => void;
+  /** Hands main the way to reach this renderer with a folder sent from
+   * outside the app; returns the folder that waited for it, if any. */
+  takePendingFolder?: (deliver: (folder: string) => void) => string | null;
 }
 
 let removeCurrentHandlers: (() => void) | null = null;
@@ -200,6 +203,7 @@ export function registerIpc({
   isQuitting = () => false,
   runId = "main-process",
   onLocaleChange,
+  takePendingFolder,
 }: RegisterIpcOptions): () => void {
   removeCurrentHandlers?.();
 
@@ -264,6 +268,11 @@ export function registerIpc({
     onLocaleChange?.(next);
     return next;
   });
+  // The renderer subscribed to `app:open-folder` before asking, so the
+  // folders that come after this reach it as events.
+  handle(IPC_CHANNELS.app.takePendingFolder, (): string | null =>
+    takePendingFolder?.((folder) => send(IPC_CHANNELS.app.openFolder, folder)) ?? null,
+  );
   handle(IPC_CHANNELS.app.setTitle, (_event, value) => {
     window.setTitle(asString(value, "title", { maxLength: 256 }));
   });

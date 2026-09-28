@@ -45,6 +45,20 @@ const config: ForgeConfig = {
     extendInfo: {
       NSMicrophoneUsageDescription:
         "O Head Terminal usa o microfone para o ditado por voz e para o brainstorm por voz com os agentes.",
+      // Pastas são documentos que o app abre: o item "New Head Terminal
+      // Session Here" do menu Services do Finder
+      // (scripts/install-finder-service.sh) faz `open -a` com a pasta, e uma
+      // pasta solta no ícone do Dock também chega. As duas viram `open-file`
+      // (electron/main.ts). "Alternate": o app nunca vira o padrão para abrir
+      // pastas — o Finder continua sendo.
+      CFBundleDocumentTypes: [
+        {
+          CFBundleTypeName: "Folder",
+          CFBundleTypeRole: "Viewer",
+          LSHandlerRank: "Alternate",
+          LSItemContentTypes: ["public.folder"],
+        },
+      ],
     },
     // Sem certificado ainda, mas assinar mesmo assim (ad-hoc) importa: o
     // pacote cru herda a assinatura genérica do Electron, com identificador

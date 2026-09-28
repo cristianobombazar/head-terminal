@@ -42,6 +42,9 @@ function App() {
   const [defaultCwd, setDefaultCwd] = useState<string | null>(null);
   const [bootstrapError, setBootstrapError] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+  /** A folder sent from outside the app; the dialog opens there instead of
+   * the default folder. */
+  const [requestedCwd, setRequestedCwd] = useState<string | null>(null);
   const [bootSlow, setBootSlow] = useState(false);
   const [showDiagnosticActions, setShowDiagnosticActions] = useState(false);
 
@@ -150,6 +153,30 @@ function App() {
     setCreateOpen(true);
   }, []);
 
+  // Finder's "New Head Terminal Session Here" and a folder dropped on the Dock
+  // icon: the new-session dialog opens on that folder, with the agent and the
+  // Claude profile it remembers, so creating the session is one confirmation.
+  useEffect(() => {
+    if (!bootstrapped) {
+      return;
+    }
+    const openAt = (folder: string) => {
+      setRequestedCwd(folder);
+      setCreateOpen(true);
+    };
+    // Subscribed before asking: main sends the next folders as events.
+    const unsubscribe = window.headTerminal.app.onOpenFolder(openAt);
+    void window.headTerminal.app
+      .takePendingFolder()
+      .then((folder) => {
+        if (folder) {
+          openAt(folder);
+        }
+      })
+      .catch((error: unknown) => logError("app.pending_folder_failed", error));
+    return unsubscribe;
+  }, [bootstrapped]);
+
   const handleCreateConfirm = useCallback(
     (
       cwd: string,
@@ -203,8 +230,11 @@ function App() {
       />
       <CreateSessionDialog
         open={createOpen}
-        defaultCwd={defaultCwd}
-        onClose={() => setCreateOpen(false)}
+        defaultCwd={requestedCwd ?? defaultCwd}
+        onClose={() => {
+          setCreateOpen(false);
+          setRequestedCwd(null);
+        }}
         onCreate={handleCreateConfirm}
       />
       <BrainstormPanel />

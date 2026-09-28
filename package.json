@@ -26,6 +26,7 @@
     "make": "cross-env NODE_ENV=production electron-forge make",
     "install:mac": "npm run package && bash scripts/install-mac-app.sh",
     "install:mac:existing": "bash scripts/install-mac-app.sh",
+    "install:finder-service": "bash scripts/install-finder-service.sh",
     "preview:renderer": "vite preview",
     "dev:renderer": "vite",
     "start:dev": "bash scripts/head-terminal-dev.sh",
