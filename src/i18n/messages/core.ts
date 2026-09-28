@@ -1,0 +1,299 @@
+// Text for labels and messages from src/core, src/config, src/types and
+// src/actions. `ptBR` is the source; `en` must have the very same keys (the
+// type enforces it). Text with a value in it is a function.
+const ptBR = {
+  activity: {
+    starting: "Iniciando",
+    idle: "Pronto",
+    working: "Executando",
+    waitingInput: "Aguardando",
+    agentFallback: "Shell",
+    error: "Erro",
+    exited: "Encerrado",
+    since: (label: string, duration: string) => `${label} há ${duration}`,
+  },
+  minimized: {
+    working: "Executando",
+    starting: "Iniciando",
+    approval: "Pede aprovação",
+    done: "Terminou",
+    waiting: "Aguardando",
+    idle: "Pronto",
+    error: "Erro",
+    fallback: "Agent caiu",
+    exited: "Encerrado",
+    ago: (duration: string) => `há ${duration}`,
+  },
+  startup: {
+    loadingInterface: "Carregando interface",
+    preparingReact: "Preparando React",
+    rendering: "Renderizando",
+    startingSessions: "Iniciando sessões",
+    defaultFolderLoaded: "Diretório padrão carregado",
+    sessionsRestored: "Sessões restauradas",
+    finishing: "Finalizando inicialização",
+    mountingShell: "Montando painel principal",
+    preparingTerminal: "Preparando terminal",
+    openingTerminal: "Abrindo terminal",
+    fittingTerminal: "Ajustando terminal",
+    startingAgent: "Iniciando agent",
+    agentRunning: "Agent em execução",
+    receivingOutput: "Recebendo saída",
+    ready: "Pronto",
+    checkingStartup: "Verificando inicialização",
+    starting: "Iniciando…",
+  },
+  toolbar: {
+    clearDescription: "Limpa o contexto do agent (Shift+clique no botão reinicia o PTY)",
+    compactDescription: "Compacta o contexto do agent",
+    contextDescription: "Mostra o contexto atual do agent",
+    helpDescription: "Lista comandos disponíveis",
+    splitVerticalDescription: "Divide o terminal ativo verticalmente",
+    splitHorizontalDescription: "Divide o terminal ativo horizontalmente",
+    maximizePane: "Expandir terminal",
+    maximizePaneDescription:
+      "Mostra só o terminal ativo na área da sessão, ou traz os outros de volta",
+    minimizePane: "Minimizar terminal",
+    minimizePaneDescription:
+      "Tira o terminal ativo da tela sem parar o agent; o status dele fica num card da sessão até restaurar",
+    closePane: "Fechar terminal",
+    closePaneDescription: "Fecha o terminal ativo (requer mais de um terminal na sessão)",
+    exportDiagnostic: "Exportar diagnóstico de inicialização",
+    exportDiagnosticDescription:
+      "Salva logs de boot e estado da UI na pasta de logs do app (Diagnóstico mostra o caminho)",
+    ghostDiagnostic: "Diagnosticar caracteres fantasma",
+    ghostDiagnosticDescription:
+      "Lê as colunas iniciais do buffer do terminal ativo, força o redesenho do renderer e copia o relatório",
+    renameSession: "Renomear sessão",
+    renameSessionDescription: "Renomeia a sessão ativa",
+    settings: "Configurações",
+    settingsDescription: "Configura a chave da API OpenAI para ditado e brainstorm por voz",
+    voiceInput: "Gravar prompt por voz",
+    voiceInputDescription: "Inicia ou para a gravação de voz no terminal ativo",
+    voiceBrainstorm: "Brainstorm por voz",
+    voiceBrainstormDescription:
+      "Conversa por voz sobre o terminal ativo, já por dentro da conversa que estava nele; aparece como uma bolinha no canto (clique abre o painel; F10 pausa e retoma a voz, F11 encerra). O agente do terminal analisa e executa com a permissão dele",
+  },
+  themes: {
+    graphite: "Grafite",
+    light: "Claro",
+  },
+  claudeAccounts: {
+    defaultName: "Conta padrão",
+    nameInvalid: "Informe um nome de até 40 caracteres",
+    nameTaken: "Já existe um perfil com esse nome",
+    notFound: "Perfil Claude não encontrado",
+    defaultNotDeletable: "A conta padrão não pode ser excluída",
+    notFoundPickAnother: "Perfil Claude não encontrado. Escolha outro perfil nas configurações.",
+    configDirUnavailable:
+      "Diretório do perfil Claude indisponível: a pasta do usuário ainda não é conhecida.",
+  },
+  conversation: {
+    newConversation: "nova conversa",
+    fallbackName: (shortId: string) => `conversa ${shortId}`,
+  },
+  notifications: {
+    error: (session: string) => `${session} encontrou um erro`,
+    agentFallback: (session: string) => `${session}: o agent caiu — shell ativo`,
+    attention: (session: string) => `${session} precisa de atenção`,
+  },
+  mcp: {
+    unsupportedAgent: "Agent não suportado",
+  },
+  sessionFilter: {
+    removedProfile: "Perfil removido",
+  },
+  sessions: {
+    copyTitle: (title: string) => `${title} (cópia)`,
+  },
+  worktree: {
+    createFailedTitle: "Não foi possível criar o worktree",
+    createFailedMessage: (cwd: string) => `O git recusou criar a árvore isolada de ${cwd}.`,
+    retry: "Tentar de novo",
+    leaveAsIs: "Deixar como está",
+    removeTitle: "Remover o worktree?",
+    removeMessage: (label: string, branch: string) => `${label} usava a árvore isolada ${branch}.`,
+    removeDetail: (path: string, branch: string) =>
+      `Nada ficou para trás: sem alteração pendente e sem commit que só exista aqui.\n\nRemover apaga a pasta ${path} e a branch ${branch}.`,
+    removeDetailKeepBranch: (path: string, branch: string, current: string) =>
+      `Nada ficou para trás: sem alteração pendente e sem commit que só exista aqui.\n\nRemover apaga a pasta ${path}. A branch ${branch} fica, porque o worktree está em ${current} agora.`,
+    detachedHead: "HEAD solto",
+    removeConfirm: "Remover worktree",
+    keepFolder: "Manter pasta",
+    uncommittedChanges: "alterações não commitadas",
+    unpushedCommits: (count: number) => `${count} commit(s) que não estão em nenhum outro lugar`,
+    pendingJoiner: " e ",
+    unpublishedTitle: "Worktree com trabalho não publicado",
+    unpublishedMessage: (branch: string, pending: string) => `${branch} tem ${pending}.`,
+    unpublishedDetail: (path: string) =>
+      `A pasta ${path} será mantida — nada é apagado.\n\n` +
+      `Cancele se preferir commitar ou publicar antes de fechar.`,
+    closeAndKeepFolder: "Fechar e manter a pasta",
+    cancel: "Cancelar",
+    removeFailedTitle: "Não foi possível remover o worktree",
+    removeFailedMessage: (path: string) => `A pasta ${path} continua no disco.`,
+    removeFailedDetail: (error: string, path: string) =>
+      `${error}\n\n` +
+      `Se algum programa ainda estiver com a pasta aberta, feche e tente de novo — ou remova depois com: git worktree remove ${path}`,
+    leaveFolder: "Deixar a pasta",
+    unknownRemoveError: "Falha desconhecida ao remover o worktree",
+    thisTerminal: "Este terminal",
+    theSession: (title: string) => `A sessão ${title}`,
+    closeSessionTitle: (title: string) => `Fechar “${title}”?`,
+    closeSessionWorking: "Um agent ainda está executando nesta sessão.",
+    closeSessionIdle: "Os terminais desta sessão serão encerrados.",
+    closeSessionWorkingDetail: "Fechar encerra o processo e o que ele estava fazendo.",
+    closeSessionConfirm: "Fechar sessão",
+  },
+};
+
+const en: typeof ptBR = {
+  activity: {
+    starting: "Starting",
+    idle: "Ready",
+    working: "Running",
+    waitingInput: "Waiting",
+    agentFallback: "Shell",
+    error: "Error",
+    exited: "Exited",
+    since: (label, duration) => `${label} for ${duration}`,
+  },
+  minimized: {
+    working: "Running",
+    starting: "Starting",
+    approval: "Needs approval",
+    done: "Finished",
+    waiting: "Waiting",
+    idle: "Ready",
+    error: "Error",
+    fallback: "Agent crashed",
+    exited: "Exited",
+    ago: (duration) => `${duration} ago`,
+  },
+  startup: {
+    loadingInterface: "Loading interface",
+    preparingReact: "Preparing React",
+    rendering: "Rendering",
+    startingSessions: "Starting sessions",
+    defaultFolderLoaded: "Default folder loaded",
+    sessionsRestored: "Sessions restored",
+    finishing: "Finishing startup",
+    mountingShell: "Building the main panel",
+    preparingTerminal: "Preparing terminal",
+    openingTerminal: "Opening terminal",
+    fittingTerminal: "Fitting terminal",
+    startingAgent: "Starting agent",
+    agentRunning: "Agent running",
+    receivingOutput: "Receiving output",
+    ready: "Ready",
+    checkingStartup: "Checking startup",
+    starting: "Starting…",
+  },
+  toolbar: {
+    clearDescription: "Clears the agent's context (Shift+click the button to restart the PTY)",
+    compactDescription: "Compacts the agent's context",
+    contextDescription: "Shows the agent's current context",
+    helpDescription: "Lists the available commands",
+    splitVerticalDescription: "Splits the active terminal vertically",
+    splitHorizontalDescription: "Splits the active terminal horizontally",
+    maximizePane: "Expand terminal",
+    maximizePaneDescription:
+      "Shows only the active terminal in the session area, or brings the others back",
+    minimizePane: "Minimize terminal",
+    minimizePaneDescription:
+      "Takes the active terminal off screen without stopping the agent; its status stays on a session card until you restore it",
+    closePane: "Close terminal",
+    closePaneDescription: "Closes the active terminal (needs more than one terminal in the session)",
+    exportDiagnostic: "Export startup diagnostic",
+    exportDiagnosticDescription:
+      "Saves boot logs and UI state to the app's log folder (Diagnostics shows the path)",
+    ghostDiagnostic: "Diagnose ghost characters",
+    ghostDiagnosticDescription:
+      "Reads the first columns of the active terminal's buffer, forces the renderer to redraw and copies the report",
+    renameSession: "Rename session",
+    renameSessionDescription: "Renames the active session",
+    settings: "Settings",
+    settingsDescription: "Sets the OpenAI API key for voice dictation and voice brainstorm",
+    voiceInput: "Record voice prompt",
+    voiceInputDescription: "Starts or stops voice recording in the active terminal",
+    voiceBrainstorm: "Voice brainstorm",
+    voiceBrainstormDescription:
+      "Voice conversation about the active terminal, picking up the conversation it already had; shows as a small dot in the corner (click opens the panel; F10 pauses and resumes the voice, F11 ends it). The terminal's agent analyzes and acts with its own permissions",
+  },
+  themes: {
+    graphite: "Graphite",
+    light: "Light",
+  },
+  claudeAccounts: {
+    defaultName: "Default account",
+    nameInvalid: "Enter a name of up to 40 characters",
+    nameTaken: "A profile with that name already exists",
+    notFound: "Claude profile not found",
+    defaultNotDeletable: "The default account can't be deleted",
+    notFoundPickAnother: "Claude profile not found. Pick another profile in Settings.",
+    configDirUnavailable:
+      "Claude profile folder unavailable: the user's home folder isn't known yet.",
+  },
+  conversation: {
+    newConversation: "new conversation",
+    fallbackName: (shortId) => `conversation ${shortId}`,
+  },
+  notifications: {
+    error: (session) => `${session} hit an error`,
+    agentFallback: (session) => `${session}: the agent crashed — shell active`,
+    attention: (session) => `${session} needs attention`,
+  },
+  mcp: {
+    unsupportedAgent: "Agent not supported",
+  },
+  sessionFilter: {
+    removedProfile: "Removed profile",
+  },
+  sessions: {
+    copyTitle: (title) => `${title} (copy)`,
+  },
+  worktree: {
+    createFailedTitle: "Couldn't create the worktree",
+    createFailedMessage: (cwd) => `Git refused to create an isolated tree for ${cwd}.`,
+    retry: "Try again",
+    leaveAsIs: "Leave it as is",
+    removeTitle: "Remove the worktree?",
+    removeMessage: (label, branch) => `${label} was using the isolated tree ${branch}.`,
+    removeDetail: (path, branch) =>
+      `Nothing was left behind: no pending changes and no commit that exists only here.\n\nRemoving deletes the folder ${path} and the branch ${branch}.`,
+    removeDetailKeepBranch: (path, branch, current) =>
+      `Nothing was left behind: no pending changes and no commit that exists only here.\n\nRemoving deletes the folder ${path}. The branch ${branch} stays, because the worktree is on ${current} now.`,
+    detachedHead: "a detached HEAD",
+    removeConfirm: "Remove worktree",
+    keepFolder: "Keep folder",
+    uncommittedChanges: "uncommitted changes",
+    unpushedCommits: (count) =>
+      count === 1
+        ? "1 commit that exists nowhere else"
+        : `${count} commits that exist nowhere else`,
+    pendingJoiner: " and ",
+    unpublishedTitle: "Worktree with unpublished work",
+    unpublishedMessage: (branch, pending) => `${branch} has ${pending}.`,
+    unpublishedDetail: (path) =>
+      `The folder ${path} will be kept — nothing is deleted.\n\n` +
+      `Cancel if you'd rather commit or push before closing.`,
+    closeAndKeepFolder: "Close and keep the folder",
+    cancel: "Cancel",
+    removeFailedTitle: "Couldn't remove the worktree",
+    removeFailedMessage: (path) => `The folder ${path} is still on disk.`,
+    removeFailedDetail: (error, path) =>
+      `${error}\n\n` +
+      `If a program still has the folder open, close it and try again — or remove it later with: git worktree remove ${path}`,
+    leaveFolder: "Leave the folder",
+    unknownRemoveError: "Unknown failure removing the worktree",
+    thisTerminal: "This terminal",
+    theSession: (title) => `The session ${title}`,
+    closeSessionTitle: (title) => `Close “${title}”?`,
+    closeSessionWorking: "An agent is still running in this session.",
+    closeSessionIdle: "This session's terminals will be closed.",
+    closeSessionWorkingDetail: "Closing ends the process and whatever it was doing.",
+    closeSessionConfirm: "Close session",
+  },
+};
+
+export const core = { "pt-BR": ptBR, en };

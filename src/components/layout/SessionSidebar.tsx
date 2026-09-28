@@ -6,29 +6,43 @@ import {
   useRef,
   useState,
   type ComponentType,
+  type CSSProperties,
 } from "react";
 
 import { formatSessionStatusLine } from "../../core/activity-duration";
-import { getClaudeAccountProfile } from "../../core/claude-accounts";
 import {
-  countWorkingSessions,
+  getClaudeAccountProfile,
+  loadClaudeAccountProfiles,
+} from "../../core/claude-accounts";
+import {
   getSessionActivity,
   getSessionActivitySince,
+  getSessionShownAgent,
 } from "../../core/activity-utils";
 import { flipAnimate } from "../../core/flip-animate";
 import { restorePaneWithMotion } from "../../core/pane-minimize";
 import { samePath } from "../../core/path-utils";
+import {
+  claudeAccountFilterOptions,
+  filterSessionsByClaudeAccount,
+} from "../../core/session-filter";
 import { collectPaneIds } from "../../core/session-layout";
 import { useSessionStore } from "../../core/session-manager";
 import { formatShortcut } from "../../core/shortcuts";
+import { msg } from "../../i18n";
+import { useLocale } from "../../i18n/react";
 import {
   closeSessionWithWorktreeReview,
   isolateSessionInWorktree,
 } from "../../core/worktree";
 import { duplicateSessionIsolated } from "../../actions/duplicateSession";
 import {
+  SIDEBAR_WIDTH_DEFAULT,
+  clampSidebarWidth,
   loadSidebarCollapsed,
+  loadSidebarWidth,
   saveSidebarCollapsed,
+  saveSidebarWidth,
 } from "../../core/ui-preferences";
 import {
   ACTIVITY_LABEL,
@@ -112,6 +126,12 @@ function SessionStatusLine({
   return <span>{formatSessionStatusLine(activity, activitySince, now)}</span>;
 }
 
+function filterChipClass(active: boolean): string {
+  return active
+    ? "session-sidebar__filter-chip session-sidebar__filter-chip--active"
+    : "session-sidebar__filter-chip";
+}
+
 function paneDotsKey(
   paneIds: string[],
   paneRuntime: Record<string, { activity?: PaneActivity } | undefined>,
@@ -158,6 +178,7 @@ const SessionListItem = memo(function SessionListItem({
   onDragOver,
   onDrop,
 }: SessionListItemProps) {
+  useLocale();
   const [isEditing, setIsEditing] = useState(false);
   const [draftTitle, setDraftTitle] = useState(session.title);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -175,6 +196,13 @@ const SessionListItem = memo(function SessionListItem({
   const minimizedKey = useSessionStore((state) =>
     paneIds.map((paneId) => (state.minimizedPanes[paneId] ? "1" : "0")).join(""),
   );
+  const shownAgent = useSessionStore((state) =>
+    getSessionShownAgent(session, state.paneRuntime),
+  );
+  // `claude` typed in a shell runs on the terminal's own ~/.claude, not on
+  // one of the app's profiles: the chip says which one it really is.
+  const claudeInShell = shownAgent !== session.agentProfileId;
+  const accountLabel = claudeInShell ? "~/.claude" : claudeAccountName;
 
   useEffect(() => {
     if (forceRename) {
@@ -226,12 +254,12 @@ const SessionListItem = memo(function SessionListItem({
               ? "session-sidebar__compact-item session-sidebar__compact-item--active"
               : "session-sidebar__compact-item") + ringClass
           }
-          title={`${session.title}${claudeAccountName ? ` — ${claudeAccountName}` : ""} — ${ACTIVITY_LABEL[activity]}`}
+          title={`${session.title}${accountLabel ? ` — ${accountLabel}` : ""} — ${ACTIVITY_LABEL[activity]}`}
           aria-label={session.title}
           onClick={onSelect}
           onContextMenu={(event) => onContextMenu(event, session)}
         >
-          <AgentIcon agentProfileId={session.agentProfileId} size={16} />
+          <AgentIcon agentProfileId={shownAgent} size={16} />
         </button>
       </li>
     );
@@ -271,7 +299,7 @@ const SessionListItem = memo(function SessionListItem({
           <div className="session-sidebar__title-row">
             <StatusDot activity={activity} />
             {session.pinned && (
-              <span className="session-sidebar__pin" title="Fixada">
+              <span className="session-sidebar__pin" title={msg.sidebar.pinned}>
                 📌
               </span>
             )}
@@ -310,16 +338,20 @@ const SessionListItem = memo(function SessionListItem({
             )}
             <span
               className="session-sidebar__agent-chip"
-              title={session.agentProfileId}
+              title={claudeInShell ? msg.sidebar.claudeInShell : session.agentProfileId}
             >
-              <AgentIcon agentProfileId={session.agentProfileId} size={12} />
+              <AgentIcon agentProfileId={shownAgent} size={12} />
             </span>
-            {claudeAccountName && (
+            {accountLabel && (
               <span
                 className="session-sidebar__account-chip"
-                title={`Perfil Claude: ${claudeAccountName}`}
+                title={
+                  claudeInShell
+                    ? msg.sidebar.claudeInShellAccount
+                    : msg.sidebar.claudeProfile(accountLabel)
+                }
               >
-                {claudeAccountName}
+                {accountLabel}
               </span>
             )}
           </div>
@@ -343,8 +375,8 @@ const SessionListItem = memo(function SessionListItem({
                       (minimized ? " session-sidebar__pane-dot--minimized" : "")
                     }
                     title={
-                      `Terminal ${index + 1} — ${ACTIVITY_LABEL[paneActivity]}` +
-                      (minimized ? " · minimizado, clique para restaurar" : "")
+                      msg.sidebar.paneDot(index + 1, ACTIVITY_LABEL[paneActivity]) +
+                      (minimized ? msg.sidebar.paneDotMinimized : "")
                     }
                     onClick={(event) => {
                       event.stopPropagation();
@@ -367,8 +399,8 @@ const SessionListItem = memo(function SessionListItem({
             <button
               type="button"
               className="session-sidebar__action session-sidebar__action--rename"
-              title="Renomear sessão"
-              aria-label={`Renomear ${session.title}`}
+              title={msg.sidebar.rename}
+              aria-label={msg.sidebar.renameAria(session.title)}
               onClick={(event) => {
                 event.preventDefault();
                 event.stopPropagation();
@@ -380,8 +412,8 @@ const SessionListItem = memo(function SessionListItem({
             <button
               type="button"
               className="session-sidebar__action session-sidebar__action--remove"
-              title="Fechar sessão"
-              aria-label={`Fechar ${session.title}`}
+              title={msg.sidebar.close}
+              aria-label={msg.sidebar.closeAria(session.title)}
               onClick={(event) => {
                 // Um clique só: a confirmação fica no diálogo que o fechamento abre.
                 event.stopPropagation();
@@ -405,6 +437,10 @@ export function SessionSidebar({
   onRenameRequest,
 }: SessionSidebarProps) {
   const [collapsed, setCollapsed] = useState(loadSidebarCollapsed);
+  const [width, setWidth] = useState(loadSidebarWidth);
+  const [resizing, setResizing] = useState(false);
+  const resizeStart = useRef<{ x: number; width: number } | null>(null);
+  const [accountFilter, setAccountFilter] = useState<string | null>(null);
   const [dragFrom, setDragFrom] = useState<number | null>(null);
   const [contextMenu, setContextMenu] = useState<{
     session: AgentSession;
@@ -412,9 +448,18 @@ export function SessionSidebar({
     y: number;
   } | null>(null);
   const activeSessionId = useSessionStore((state) => state.activeSessionId);
-  const workingCount = useSessionStore((state) =>
-    countWorkingSessions(state.sessions, state.paneRuntime),
+  const accountOptions = claudeAccountFilterOptions(
+    sessions,
+    loadClaudeAccountProfiles(),
   );
+  // O filtro só vale enquanto os chips estão na tela: recolhido, ou com um
+  // perfil só, a lista nunca esconde sessões sem mostrar por quê.
+  const showAccountFilter = !collapsed && accountOptions.length > 1;
+  const activeAccountFilter =
+    showAccountFilter && accountOptions.some((option) => option.id === accountFilter)
+      ? accountFilter
+      : null;
+  const visibleSessions = filterSessionsByClaudeAccount(sessions, activeAccountFilter);
   // A ordem é sempre a do store (pin + drag manual) — sem reordenação
   // automática; quem precisa de atenção sinaliza pela cor do status, não por posição.
   const listRef = useRef<HTMLUListElement | null>(null);
@@ -422,7 +467,7 @@ export function SessionSidebar({
   // Sem deps, isso rodava (getBoundingClientRect em cada sessão = reflow
   // síncrono) em TODO re-render do sidebar, inclusive os disparados por
   // activity/context ping — não só quando a ordem muda de fato.
-  const sessionOrderKey = sessions.map((session) => session.id).join(",");
+  const sessionOrderKey = visibleSessions.map((session) => session.id).join(",");
   useLayoutEffect(() => {
     if (listRef.current) {
       listTops.current = flipAnimate(listRef.current, listTops.current);
@@ -442,6 +487,27 @@ export function SessionSidebar({
       saveSidebarCollapsed(next);
       return next;
     });
+  };
+
+  const resizeTarget = (event: React.PointerEvent): number | null => {
+    const start = resizeStart.current;
+    return start ? clampSidebarWidth(start.width + event.clientX - start.x) : null;
+  };
+
+  const finishResize = (finalWidth: number) => {
+    resizeStart.current = null;
+    setResizing(false);
+    setWidth(finalWidth);
+    saveSidebarWidth(finalWidth);
+  };
+
+  const onResizePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    // Capturado, o arraste fica com a alça mesmo passando sobre um terminal,
+    // que senão mandaria o movimento ao agent como relatório de mouse.
+    event.currentTarget.setPointerCapture(event.pointerId);
+    resizeStart.current = { x: event.clientX, width };
+    setResizing(true);
   };
 
   const focusSessionPane = (sessionId: string, paneId: string) => {
@@ -473,22 +539,32 @@ export function SessionSidebar({
   return (
     <aside
       className={
-        collapsed
+        (collapsed
           ? "session-sidebar session-sidebar--collapsed"
-          : "session-sidebar"
+          : "session-sidebar") +
+        (resizing ? " session-sidebar--resizing" : "")
       }
-      aria-label="Sessões de agent"
+      style={{ "--sidebar-width": `${width}px` } as CSSProperties}
+      aria-label={msg.sidebar.ariaLabel}
     >
       <div className="session-sidebar__header">
         {!collapsed && (
           <span className="session-sidebar__header-title">
-            Sessões
-            {workingCount > 0 && (
+            {msg.sidebar.title}
+            {/* Quantas sessões há — as que estão executando já aparecem na
+                barra do topo. Com filtro, quantas dele sobraram na lista. */}
+            {sessions.length > 0 && (
               <span
-                className="session-sidebar__working-badge"
-                title={`${workingCount} sessão(ões) executando`}
+                className="session-sidebar__count-badge"
+                title={
+                  visibleSessions.length === sessions.length
+                    ? msg.sidebar.count(sessions.length)
+                    : msg.sidebar.countFiltered(visibleSessions.length, sessions.length)
+                }
               >
-                {workingCount}
+                {visibleSessions.length === sessions.length
+                  ? sessions.length
+                  : `${visibleSessions.length}/${sessions.length}`}
               </span>
             )}
           </span>
@@ -499,19 +575,19 @@ export function SessionSidebar({
             <button
               type="button"
               className="session-sidebar__new"
-              title={`Nova sessão (${formatShortcut("Ctrl+Shift+N")})`}
+              title={msg.sidebar.newSessionHint(formatShortcut("Ctrl+Shift+N"))}
               onClick={onCreateSession}
             >
               <IconPlus size={12} />
-              <span>Nova</span>
+              <span>{msg.sidebar.newSession}</span>
             </button>
           )}
 
           <button
             type="button"
             className="session-sidebar__toggle"
-            title={collapsed ? "Expandir menu" : "Recolher menu"}
-            aria-label={collapsed ? "Expandir menu" : "Recolher menu"}
+            title={collapsed ? msg.sidebar.expand : msg.sidebar.collapse}
+            aria-label={collapsed ? msg.sidebar.expand : msg.sidebar.collapse}
             onClick={toggleCollapsed}
           >
             {collapsed ? <IconSidebarExpand /> : <IconSidebarCollapse />}
@@ -519,8 +595,39 @@ export function SessionSidebar({
         </div>
       </div>
 
+      {showAccountFilter && (
+        <div
+          className="session-sidebar__filter"
+          role="group"
+          aria-label={msg.sidebar.profileFilterAria}
+        >
+          <button
+            type="button"
+            className={filterChipClass(activeAccountFilter === null)}
+            aria-pressed={activeAccountFilter === null}
+            onClick={() => setAccountFilter(null)}
+          >
+            {msg.sidebar.profileFilterAll}
+          </button>
+          {accountOptions.map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              className={filterChipClass(activeAccountFilter === option.id)}
+              aria-pressed={activeAccountFilter === option.id}
+              title={msg.sidebar.profileFilterOnly(option.label)}
+              onClick={() =>
+                setAccountFilter((current) => (current === option.id ? null : option.id))
+              }
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      )}
+
       <ul className="session-sidebar__list" ref={listRef}>
-        {sessions.map((session, index) => (
+        {visibleSessions.map((session) => (
           <SessionListItem
             key={session.id}
             session={session}
@@ -529,7 +636,8 @@ export function SessionSidebar({
                 ? getClaudeAccountProfile(session.claudeAccountId)?.name
                 : undefined
             }
-            sessionIndex={index}
+            // Índice no store, não na lista filtrada: é nele que o drag reordena.
+            sessionIndex={sessions.indexOf(session)}
             collapsed={collapsed}
             isActive={session.id === activeSessionId}
             forceRename={renameSessionId === session.id}
@@ -557,8 +665,8 @@ export function SessionSidebar({
           <button
             type="button"
             className="session-sidebar__compact-new"
-            title={`Nova sessão (${formatShortcut("Ctrl+Shift+N")})`}
-            aria-label="Nova sessão"
+            title={msg.sidebar.newSessionHint(formatShortcut("Ctrl+Shift+N"))}
+            aria-label={msg.sidebar.newSessionAria}
             onClick={onCreateSession}
           >
             <IconPlus size={16} />
@@ -566,6 +674,36 @@ export function SessionSidebar({
         )}
         <SystemResourceMeter collapsed={collapsed} />
       </div>
+
+      {!collapsed && (
+        <div
+          className="session-sidebar__resize-handle"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label={msg.sidebar.resizeAria}
+          title={msg.sidebar.resizeHint}
+          onPointerDown={onResizePointerDown}
+          onPointerMove={(event) => {
+            const next = resizeTarget(event);
+            if (next !== null) {
+              setWidth(next);
+            }
+          }}
+          onPointerUp={(event) => {
+            const next = resizeTarget(event);
+            if (next !== null) {
+              finishResize(next);
+            }
+          }}
+          onLostPointerCapture={() => {
+            // Cancelado pelo sistema, sem pointerup: fica a última largura.
+            if (resizeStart.current) {
+              finishResize(width);
+            }
+          }}
+          onDoubleClick={() => finishResize(SIDEBAR_WIDTH_DEFAULT)}
+        />
+      )}
 
       {contextMenu && (
         <SessionContextMenu
@@ -591,9 +729,7 @@ export function SessionSidebar({
                   return;
                 }
                 if (
-                  window.confirm(
-                    "Alterar a pasta reinicia os terminais da sessão. Continuar?",
-                  )
+                  window.confirm(msg.sidebar.changeFolderConfirm)
                 ) {
                   updateSessionCwd(session.id, selected);
                 }

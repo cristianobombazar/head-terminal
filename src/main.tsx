@@ -12,8 +12,10 @@ import {
 import { startStartupWatchdog } from "./core/startup-watchdog";
 import { initPlatformInfo } from "./core/platform-info";
 import { initTheme } from "./core/theme-manager";
+import { locale } from "./i18n";
 
 async function bootstrapFrontend(): Promise<void> {
+  document.documentElement.lang = locale;
   // Fired before anything awaits getStartupContext below, so it's usually
   // resolved by the time the first pane creates its terminal instance.
   initPlatformInfo();

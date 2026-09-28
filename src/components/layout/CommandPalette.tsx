@@ -12,6 +12,7 @@ import { closePaneWithWorktreeReview } from "../../core/worktree";
 import { toggleBrainstorm } from "../../core/live-brainstorm";
 import { getTerminal } from "../../core/terminal-registry";
 import { isVoiceInputSupported, toggleVoiceInput } from "../../core/voice-input";
+import { msg } from "../../i18n";
 
 function getFocusable(container: HTMLElement): HTMLElement[] {
   return Array.from(
@@ -218,20 +219,20 @@ export function CommandPalette({
         className="command-palette"
         role="dialog"
         aria-modal="true"
-        aria-label="Paleta de comandos"
+        aria-label={msg.app.palette.ariaLabel}
         onClick={(event) => event.stopPropagation()}
       >
         <input
           ref={inputRef}
           className="command-palette__input"
-          placeholder="Digite um comando…"
+          placeholder={msg.app.palette.placeholder}
           value={query}
           onChange={(event) => setQuery(event.target.value)}
         />
 
         <ul className="command-palette__list">
           {filtered.length === 0 && (
-            <li className="command-palette__empty">Nenhum comando encontrado</li>
+            <li className="command-palette__empty">{msg.app.palette.empty}</li>
           )}
           {filtered.map((action, index) => (
             <li key={action.id}>

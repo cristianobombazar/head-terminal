@@ -1,5 +1,7 @@
 import { useEffect, useRef, useCallback } from "react";
 
+import { msg } from "../../i18n";
+
 interface SessionContextMenuProps {
   x: number;
   y: number;
@@ -57,24 +59,24 @@ export function SessionContextMenu({
       role="menu"
     >
       <button type="button" onClick={onRename}>
-        Renomear
+        {msg.app.sessionMenu.rename}
       </button>
       <button type="button" onClick={onTogglePin}>
-        {pinned ? "Desafixar" : "Fixar"}
+        {pinned ? msg.app.sessionMenu.unpin : msg.app.sessionMenu.pin}
       </button>
       <button type="button" onClick={onChangeFolder}>
-        Alterar pasta…
+        {msg.app.sessionMenu.changeFolder}
       </button>
       {onIsolate && (
         <button type="button" onClick={onIsolate}>
-          Isolar em worktree…
+          {msg.app.sessionMenu.isolate}
         </button>
       )}
       <button type="button" onClick={onDuplicate}>
-        Duplicar
+        {msg.app.sessionMenu.duplicate}
       </button>
       <button type="button" className="session-context-menu__danger" onClick={onClose}>
-        Fechar sessão
+        {msg.app.sessionMenu.close}
       </button>
     </div>
   );

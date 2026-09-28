@@ -1,3 +1,4 @@
+import type { LanguagePreference, Locale } from "../../src/i18n/locale";
 import type {
   WorktreeEntry,
   WorktreeInfo,
@@ -21,6 +22,10 @@ export interface StartupContext {
   platform: NodeJS.Platform;
   version: string;
   userDataPath: string;
+  /** What Settings holds; "auto" follows the machine. */
+  languagePreference: LanguagePreference;
+  /** The language "auto" means on this machine. */
+  systemLocale: Locale;
 }
 
 export interface SpawnPtyInput {
@@ -58,6 +63,15 @@ export interface PtyExitEvent {
   id: string;
   exitCode: number;
   signal?: number;
+}
+
+/** An agent CLI found running inside a pane — e.g. `claude` typed in a shell. */
+export type RunningAgent = "claude";
+
+export interface PtyAgentEvent {
+  id: string;
+  /** `null` once it is gone again. */
+  agent: RunningAgent | null;
 }
 
 export interface GitContextPayload {
@@ -296,11 +310,16 @@ export type MigratedPreferences = Record<string, string>;
 
 export interface HeadTerminalApi {
   app: {
+    /** The UI language main resolved from the machine: "pt-BR" or "en". */
+    locale: string;
     getStartupContext(): Promise<StartupContext>;
     setTitle(title: string): Promise<void>;
     requestClose(): Promise<void>;
     respondToClose(allow: boolean): void;
     onCloseRequested(callback: () => void): Unsubscribe;
+    /** Saves the pick and switches main to it; resolves to the language to
+     * switch the renderer to ("auto" resolved against the machine). */
+    setLanguage(preference: LanguagePreference): Promise<Locale>;
   };
   terminal: {
     spawn(input: SpawnPtyInput): Promise<PtyHandle>;
@@ -309,6 +328,7 @@ export interface HeadTerminalApi {
     kill(id: string): Promise<void>;
     onData(callback: (event: PtyDataEvent) => void): Unsubscribe;
     onExit(callback: (event: PtyExitEvent) => void): Unsubscribe;
+    onAgent(callback: (event: PtyAgentEvent) => void): Unsubscribe;
   };
   git: {
     getContext(cwd: string): Promise<GitContextPayload>;

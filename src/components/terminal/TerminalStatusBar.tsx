@@ -2,6 +2,7 @@ import { pickGitContextForSession } from "../../core/git-context-utils";
 import { collectPaneIds } from "../../core/session-layout";
 import { GitBranchBadge } from "../ui/GitBranchBadge";
 import { useSessionStore } from "../../core/session-manager";
+import { msg } from "../../i18n";
 
 interface TerminalStatusBarProps {
   sessionId: string;
@@ -34,7 +35,7 @@ export function TerminalStatusBar({ sessionId }: TerminalStatusBarProps) {
   }
 
   return (
-    <footer className="terminal-status-bar" aria-label="Contexto git da sessão">
+    <footer className="terminal-status-bar" aria-label={msg.terminal.statusBar.ariaLabel}>
       <GitBranchBadge context={context} showPath />
     </footer>
   );

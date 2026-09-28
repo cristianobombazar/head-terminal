@@ -1,6 +1,7 @@
 /* Sidebar — session list */
 
 .session-sidebar {
+  position: relative;
   width: var(--sidebar-width);
   flex: 0 0 var(--sidebar-width);
   border-right: 1px solid var(--border-subtle);
@@ -15,6 +16,32 @@
 .session-sidebar--collapsed {
   width: var(--sidebar-collapsed-width);
   flex-basis: var(--sidebar-collapsed-width);
+}
+
+/* The width follows the pointer while dragging; easing it would lag behind */
+.session-sidebar--resizing {
+  transition: none;
+}
+
+/* Invisible hit target on the right border; accent while dragging */
+.session-sidebar__resize-handle {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  z-index: var(--z-divider);
+  width: 5px;
+  height: 100%;
+  cursor: col-resize;
+  background: transparent;
+  transition: background var(--transition-fast);
+}
+
+.session-sidebar__resize-handle:hover {
+  background: var(--accent-muted);
+}
+
+.session-sidebar--resizing .session-sidebar__resize-handle {
+  background: var(--accent);
 }
 
 .session-sidebar__header {
@@ -38,7 +65,9 @@
   gap: 6px;
 }
 
-.session-sidebar__working-badge {
+/* How many sessions there are (filtered: shown/total). Neutral on purpose:
+   the ones executing already have their own badge in the top bar. */
+.session-sidebar__count-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -46,8 +75,8 @@
   height: 18px;
   padding: 0 5px;
   border-radius: 999px;
-  background: var(--status-working-subtle);
-  color: var(--status-working);
+  background: var(--bg-3);
+  color: var(--text-secondary);
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0;
@@ -116,6 +145,44 @@
 .session-sidebar__new:hover {
   background: var(--accent-hover);
   border-color: var(--accent-hover);
+}
+
+/* Claude profile filter — one chip per profile in use */
+.session-sidebar__filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: var(--space-2) var(--space-2) 0;
+}
+
+.session-sidebar__filter-chip {
+  max-width: 100%;
+  overflow: hidden;
+  padding: 2px 8px;
+  border: 1px solid var(--border-default);
+  border-radius: 999px;
+  background: var(--bg-2);
+  color: var(--text-secondary);
+  font-size: var(--font-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.session-sidebar__filter-chip:hover {
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+
+.session-sidebar__filter-chip--active,
+.session-sidebar__filter-chip--active:hover {
+  border-color: var(--accent);
+  background: var(--accent-subtle);
+  color: var(--accent);
 }
 
 .session-sidebar__list {

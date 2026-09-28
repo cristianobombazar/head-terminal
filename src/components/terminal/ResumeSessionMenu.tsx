@@ -10,6 +10,7 @@ import {
   useSessionStore,
 } from "../../core/session-manager";
 import { IconChevronDown, IconPencil } from "../ui/Icons";
+import { locale, msg } from "../../i18n";
 
 interface ResumeSessionMenuProps {
   paneId: string;
@@ -50,11 +51,11 @@ function formatExactLabel(iso: string): string {
   const ms = Date.parse(iso);
   if (Number.isNaN(ms)) return "";
   const date = new Date(ms);
-  const clock = date.toLocaleTimeString("pt-BR");
+  const clock = date.toLocaleTimeString(locale);
   if (date.toDateString() === new Date().toDateString()) {
     return clock;
   }
-  const day = date.toLocaleDateString("pt-BR", {
+  const day = date.toLocaleDateString(locale, {
     day: "2-digit",
     month: "2-digit",
   });
@@ -65,13 +66,13 @@ function formatRelativeLabel(iso: string): string {
   const ms = Date.parse(iso);
   if (Number.isNaN(ms)) return "";
   const diffMinutes = Math.round((Date.now() - ms) / 60_000);
-  if (diffMinutes < 1) return "agora";
-  if (diffMinutes < 60) return `${diffMinutes} min atrás`;
+  if (diffMinutes < 1) return msg.terminal.resume.justNow;
+  if (diffMinutes < 60) return msg.terminal.resume.minutesAgo(diffMinutes);
   const diffHours = Math.round(diffMinutes / 60);
-  if (diffHours < 24) return `${diffHours} h atrás`;
+  if (diffHours < 24) return msg.terminal.resume.hoursAgo(diffHours);
   const diffDays = Math.round(diffHours / 24);
-  if (diffDays < 30) return `${diffDays} d atrás`;
-  return new Date(ms).toLocaleDateString("pt-BR");
+  if (diffDays < 30) return msg.terminal.resume.daysAgo(diffDays);
+  return new Date(ms).toLocaleDateString(locale);
 }
 
 export function ResumeSessionMenu({
@@ -191,8 +192,8 @@ export function ResumeSessionMenu({
         ref={triggerRef}
         type="button"
         className="terminal-pane-header__action"
-        title="Histórico de conversas desta pasta"
-        aria-label="Histórico de conversas desta pasta"
+        title={msg.terminal.resume.triggerHint}
+        aria-label={msg.terminal.resume.triggerHint}
         aria-expanded={position !== null}
         onClick={open}
       >
@@ -210,11 +211,11 @@ export function ResumeSessionMenu({
           role="menu"
         >
           {entries === null && (
-            <div className="resume-session-menu__empty">Carregando…</div>
+            <div className="resume-session-menu__empty">{msg.terminal.resume.loading}</div>
           )}
           {entries?.length === 0 && (
             <div className="resume-session-menu__empty">
-              Nenhuma sessão anterior encontrada
+              {msg.terminal.resume.empty}
             </div>
           )}
           {entries?.map((entry) => {
@@ -235,7 +236,7 @@ export function ResumeSessionMenu({
                     className="resume-session-menu__rename-input"
                     value={draft}
                     maxLength={CONVERSATION_LABEL_MAX_LENGTH}
-                    placeholder="Nome da conversa"
+                    placeholder={msg.terminal.resume.renamePlaceholder}
                     onChange={(event) => setDraft(event.target.value)}
                     onBlur={() => commitRename(entry.id)}
                     onKeyDown={(event) => {
@@ -269,11 +270,11 @@ export function ResumeSessionMenu({
                   role="menuitem"
                   title={[
                     name,
-                    `Iniciada em ${formatExactLabel(entry.createdAt)}`,
+                    msg.terminal.resume.startedAt(formatExactLabel(entry.createdAt)),
                     entry.updatedAt !== entry.createdAt
-                      ? `Última atividade ${formatExactLabel(entry.updatedAt)}`
+                      ? msg.terminal.resume.lastActivity(formatExactLabel(entry.updatedAt))
                       : "",
-                    isCurrent ? "Conversa atual deste terminal" : "",
+                    isCurrent ? msg.terminal.resume.current : "",
                   ]
                     .filter(Boolean)
                     .join("\n")}
@@ -297,8 +298,8 @@ export function ResumeSessionMenu({
                 <button
                   type="button"
                   className="resume-session-menu__rename"
-                  title="Renomear conversa (vazio volta ao nome automático)"
-                  aria-label={`Renomear ${name}`}
+                  title={msg.terminal.resume.renameHint}
+                  aria-label={msg.terminal.resume.renameAria(name)}
                   onClick={(event) => {
                     event.stopPropagation();
                     setDraft(name);

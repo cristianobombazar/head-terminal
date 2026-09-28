@@ -3,6 +3,7 @@ import { basename, dirname, join } from "node:path";
 import { randomUUID } from "node:crypto";
 
 import type { PersistedWorkspace } from "../types/api";
+import { msg } from "../../src/i18n";
 
 export interface WorkspaceServiceOptions {
   userDataPath: string;
@@ -197,7 +198,7 @@ export class WorkspaceService {
 
   async save(workspace: PersistedWorkspace): Promise<void> {
     if (!isPersistedWorkspace(workspace)) {
-      throw new Error("Workspace inválido");
+      throw new Error(msg.main.workspace.invalid);
     }
     const snapshot = JSON.stringify(workspace, null, 2);
     const operation = this.#saveQueue.then(async () => {

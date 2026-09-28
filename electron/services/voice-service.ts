@@ -3,6 +3,7 @@ import { readFile, stat, unlink } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { spawn as nodeSpawn } from "node:child_process";
+import { msg } from "../../src/i18n";
 
 const TRANSCRIPTION_URL = "https://api.openai.com/v1/audio/transcriptions";
 const TRANSCRIPTION_MODEL = "gpt-transcribe";
@@ -121,7 +122,7 @@ export class VoiceService {
   }
 
   async start(ownerId?: number): Promise<void> {
-    if (this.recording) throw new Error("Já existe uma gravação em andamento.");
+    if (this.recording) throw new Error(msg.main.voice.alreadyRecording);
     if (
       ownerId !== undefined &&
       (!Number.isSafeInteger(ownerId) || ownerId <= 0)
@@ -148,7 +149,7 @@ export class VoiceService {
       );
     } catch (error) {
       await this.removeWav(wavPath);
-      throw new Error(`Não foi possível iniciar a gravação: ${this.message(error)}`);
+      throw new Error(msg.main.voice.startFailed(this.message(error)));
     }
 
     const active: ActiveRecording = { child, wavPath, ownerId };
@@ -188,21 +189,19 @@ export class VoiceService {
 
   async stopAndTranscribe(): Promise<string> {
     const active = this.takeRecording();
-    if (!active) throw new Error("Nenhuma gravação em andamento.");
+    if (!active) throw new Error(msg.main.voice.notRecording);
 
     await this.stopRecorder(active.child);
     try {
       const metadata = await stat(active.wavPath).catch(() => null);
-      if (!metadata) throw new Error("Arquivo de áudio não foi gerado.");
+      if (!metadata) throw new Error(msg.main.voice.noAudioFile);
       if (metadata.size <= WAV_HEADER_BYTES) {
-        throw new Error(
-          "Gravação muito curta ou sem áudio. Fale por pelo menos 1 segundo.",
-        );
+        throw new Error(msg.main.voice.tooShort);
       }
 
       const apiKey = (await this.secrets.get("openai-api-key"))?.trim() ?? "";
       if (!apiKey) {
-        throw new Error("Configure sua chave da OpenAI nas Configurações.");
+        throw new Error(msg.main.openAi.missingApiKey);
       }
 
       return await this.transcribe(active.wavPath, apiKey);
@@ -261,9 +260,9 @@ export class VoiceService {
       };
       const onSpawn = () => finish();
       const onError = (error: Error) =>
-        finish(new Error(`Não foi possível iniciar a gravação: ${error.message}`));
+        finish(new Error(msg.main.voice.startFailed(error.message)));
       const timeout = timer(this.startupTimeoutMs, () =>
-        finish(new Error("A inicialização do gravador demorou demais.")),
+        finish(new Error(msg.main.voice.recorderTimeout)),
       );
       child.once("spawn", onSpawn);
       child.once("error", onError);
@@ -310,20 +309,18 @@ export class VoiceService {
    */
   async transcribeAudio(bytes: Uint8Array, mimeType: string): Promise<string> {
     if (!(bytes instanceof Uint8Array) || bytes.byteLength === 0) {
-      throw new TypeError("Áudio vazio.");
+      throw new TypeError(msg.main.voice.emptyAudio);
     }
     if (bytes.byteLength > MAX_AUDIO_BYTES) {
-      throw new Error("Gravação longa demais para transcrever.");
+      throw new Error(msg.main.voice.tooLong);
     }
     if (bytes.byteLength < MIN_AUDIO_BYTES) {
-      throw new Error(
-        "Gravação muito curta ou sem áudio. Fale por pelo menos 1 segundo.",
-      );
+      throw new Error(msg.main.voice.tooShort);
     }
 
     const apiKey = (await this.secrets.get("openai-api-key"))?.trim() ?? "";
     if (!apiKey) {
-      throw new Error("Configure sua chave da OpenAI nas Configurações.");
+      throw new Error(msg.main.openAi.missingApiKey);
     }
     return this.postAudio(bytes, AUDIO_TYPES[mimeType] ?? AUDIO_TYPES.default, apiKey);
   }
@@ -367,9 +364,9 @@ export class VoiceService {
       });
     } catch (error) {
       if (abort.signal.aborted) {
-        throw new Error("A transcrição demorou demais e foi cancelada.");
+        throw new Error(msg.main.voice.transcriptionTimeout);
       }
-      throw new Error("Falha de rede ao contatar a OpenAI.", { cause: error });
+      throw new Error(msg.main.openAi.network, { cause: error });
     } finally {
       clearTimeout(timeout);
     }
@@ -382,11 +379,11 @@ export class VoiceService {
       const detail =
         typeof body.error?.message === "string"
           ? body.error.message
-          : `Erro HTTP ${response.status}`;
-      throw new Error(`Falha na transcrição: ${detail}`);
+          : msg.main.openAi.httpError(response.status);
+      throw new Error(msg.main.voice.transcriptionFailed(detail));
     }
     if (typeof body.text !== "string") {
-      throw new Error("Não foi possível interpretar a resposta da OpenAI.");
+      throw new Error(msg.main.openAi.unreadableResponse);
     }
     return body.text.trim();
   }

@@ -1,4 +1,5 @@
 import { ACTIVITY_LABEL, type PaneActivity } from "../types/activity";
+import { msg } from "../i18n";
 
 const TICK_ACTIVITIES: ReadonlySet<PaneActivity> = new Set([
   "working",
@@ -30,5 +31,5 @@ export function formatSessionStatusLine(
   if (!activitySince || !TICK_ACTIVITIES.has(activity)) {
     return label;
   }
-  return `${label} há ${formatActivityDuration(activitySince, now)}`;
+  return msg.core.activity.since(label, formatActivityDuration(activitySince, now));
 }

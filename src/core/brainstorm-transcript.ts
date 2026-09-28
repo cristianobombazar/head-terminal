@@ -14,6 +14,11 @@ export interface FragmentTiming {
   endMs?: number;
 }
 
+/**
+ * How the agent is told who said what. Part of what it receives, like the
+ * rest of its prompt, so it does not follow the app's language; the copy the
+ * user takes from the panel passes its own labels.
+ */
 const SPEAKER: Record<BrainstormRole, string> = {
   user: "Usuário",
   assistant: "Assistente de voz",
@@ -80,6 +85,8 @@ export interface FormatTranscriptOptions {
   maxChars?: number;
   /** Only turns that were still being spoken at or after this timeline point. */
   sinceMs?: number | null;
+  /** Who said what, when not the agent's labels. */
+  speakers?: Record<BrainstormRole, string>;
 }
 
 /** One line per turn, labelled by speaker; the oldest part goes first when too long. */
@@ -87,13 +94,13 @@ export function formatTranscript(
   turns: readonly BrainstormTurn[],
   options: FormatTranscriptOptions | number = {},
 ): string {
-  const { maxChars = 12_000, sinceMs = null } =
+  const { maxChars = 12_000, sinceMs = null, speakers = SPEAKER } =
     typeof options === "number" ? { maxChars: options } : options;
   const text = turns
     .filter((turn) => sinceMs === null || (turn.endMs ?? Number.POSITIVE_INFINITY) >= sinceMs)
     .map((turn) => ({ role: turn.role, text: turn.text.trim() }))
     .filter((turn) => turn.text)
-    .map((turn) => `${SPEAKER[turn.role]}: ${turn.text}`)
+    .map((turn) => `${speakers[turn.role]}: ${turn.text}`)
     .join("\n");
   return text.length > maxChars ? `…${text.slice(-maxChars)}` : text;
 }

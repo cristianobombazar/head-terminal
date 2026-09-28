@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 
 import { useConfirmDialogStore } from "../../core/confirm-dialog";
+import { msg } from "../../i18n";
 
 /**
  * Renderiza o pedido de confirmação pendente (ver core/confirm-dialog.ts).
@@ -50,7 +51,7 @@ export function ConfirmDialog() {
         )}
         <div className="confirm-dialog__actions">
           <button type="button" onClick={() => settle(false)}>
-            {request.cancelLabel ?? "Cancelar"}
+            {request.cancelLabel ?? msg.app.confirmDialog.cancel}
           </button>
           <button
             ref={confirmRef}
@@ -62,7 +63,7 @@ export function ConfirmDialog() {
             }
             onClick={() => settle(true)}
           >
-            {request.confirmLabel ?? "OK"}
+            {request.confirmLabel ?? msg.app.confirmDialog.confirm}
           </button>
         </div>
       </div>

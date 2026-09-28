@@ -2,7 +2,9 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   descendantsFromProcessTable,
+  isClaudeCommand,
   PtyService,
+  runningAgentFromProcessTable,
   type Disposable,
   type NodePtySpawnOptions,
   type PtyProcess,
@@ -63,6 +65,7 @@ function harness(baseEnv: NodeJS.ProcessEnv = {}) {
     env: baseEnv,
     // The POSIX spawn path, asserted regardless of the host running the suite.
     platform: "linux",
+    agentPollMs: 0,
     emit: (event) => events.push(event),
     spawn: (file, args, options) => {
       calls.push({ file, args, options });
@@ -171,6 +174,7 @@ describe("PtyService", () => {
     const service = new PtyService({
       env: {},
       platform: "linux",
+      agentPollMs: 0,
       log: (event, meta) => logged.push([event, meta]),
       spawn: () => new FakePty(),
     });
@@ -517,5 +521,123 @@ describe("descendantsFromProcessTable", () => {
   it("survives a cycle in the table", () => {
     const table = "10 20\n20 10";
     expect(descendantsFromProcessTable(table, 10)).toEqual([20]);
+  });
+});
+
+describe("isClaudeCommand", () => {
+  it("knows the native binary by argv, however it was reached", () => {
+    expect(isClaudeCommand("claude")).toBe(true);
+    expect(isClaudeCommand("/Users/me/.local/bin/claude --resume abc")).toBe(true);
+  });
+
+  it("knows an npm install running through node", () => {
+    expect(isClaudeCommand("node /Users/me/.npm-global/bin/claude")).toBe(true);
+    expect(
+      isClaudeCommand("/usr/local/bin/node /usr/local/lib/node_modules/@anthropic-ai/claude-code/cli.js"),
+    ).toBe(true);
+  });
+
+  it("ignores shells and tools that only mention it", () => {
+    expect(isClaudeCommand("/bin/zsh -l -c export PATH=x; claude; printf done")).toBe(false);
+    expect(isClaudeCommand("npm install -g @anthropic-ai/claude-code")).toBe(false);
+    expect(isClaudeCommand("node server.js")).toBe(false);
+    expect(isClaudeCommand("zsh -l")).toBe(false);
+    expect(isClaudeCommand("")).toBe(false);
+  });
+});
+
+describe("runningAgentFromProcessTable", () => {
+  it("finds claude started from the pane shell", () => {
+    const table = [
+      "    1     0 /sbin/launchd",
+      "  100     1 zsh -l", // the pane shell
+      "  101   100 claude",
+      "  102   101 node /tmp/mcp-server.js", // started by claude
+    ].join("\n");
+
+    expect(runningAgentFromProcessTable(table, 100)).toBe("claude");
+  });
+
+  it("does not take the agent profile's launcher script for the CLI", () => {
+    const launcherOnly = [
+      "  100     1 /bin/zsh -l -c export PATH=\"$HOME/.local/bin:$PATH\"; claude; printf x",
+    ].join("\n");
+
+    expect(runningAgentFromProcessTable(launcherOnly, 100)).toBeNull();
+  });
+
+  it("sees nothing for a bare shell or a claude outside the pane", () => {
+    const table = [
+      "  100     1 zsh -l",
+      "  200     1 claude", // another terminal's
+      "  101   100 vim notes.md",
+    ].join("\n");
+
+    expect(runningAgentFromProcessTable(table, 100)).toBeNull();
+  });
+});
+
+describe("PtyService running agent", () => {
+  it("reports claude inside a pane once when it starts and once when it goes", async () => {
+    vi.useFakeTimers();
+    try {
+      const tables = [
+        "4321 1 zsh -l",
+        "4321 1 zsh -l\n4400 4321 claude",
+        "4321 1 zsh -l\n4400 4321 claude",
+        "4321 1 zsh -l",
+      ];
+      let reads = 0;
+      const events: PtyServiceEvent[] = [];
+      const service = new PtyService({
+        env: {},
+        platform: "linux",
+        agentPollMs: 100,
+        readProcessTable: async () => tables[Math.min(reads++, tables.length - 1)],
+        emit: (event) => events.push(event),
+        spawn: () => new FakePty(),
+      });
+      service.spawn(1, { id: "pane-1", command: "zsh", args: ["-l"], cwd: "/tmp" });
+
+      await vi.advanceTimersByTimeAsync(400);
+
+      expect(events.filter((event) => event.channel === "pty:agent")).toEqual([
+        { channel: "pty:agent", ownerId: 1, payload: { id: "pane-1", agent: "claude" } },
+        { channel: "pty:agent", ownerId: 1, payload: { id: "pane-1", agent: null } },
+      ]);
+
+      await service.kill(1, "pane-1");
+      const readsAtKill = reads;
+      await vi.advanceTimersByTimeAsync(500);
+      expect(reads).toBe(readsAtKill);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("never polls on Windows", async () => {
+    vi.useFakeTimers();
+    try {
+      const readProcessTable = vi.fn(async () => "");
+      const service = new PtyService({
+        env: {},
+        platform: "win32",
+        agentPollMs: 100,
+        readProcessTable,
+        windowsShell: "pwsh.exe",
+        wslShell: "wsl.exe",
+        killWindowsTree: async () => undefined,
+        pathExists: () => true,
+        spawn: () => new FakePty(),
+      });
+      service.spawn(1, { id: "pane-1", command: "powershell", cwd: "C:\\" });
+
+      await vi.advanceTimersByTimeAsync(500);
+
+      expect(readProcessTable).not.toHaveBeenCalled();
+      await service.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

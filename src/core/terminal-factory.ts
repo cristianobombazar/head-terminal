@@ -14,6 +14,7 @@ import {
   isTerminalPasteKey,
   pasteClipboardIntoTerminal,
 } from "./terminal-clipboard";
+import { isMacHost } from "./platform-info";
 
 const SCROLLBACK = 5000;
 /**
@@ -29,6 +30,44 @@ const MIN_FIT_ROWS = 3;
 const WEBGL_FAILED_KEY = "head-terminal.webgl-failed";
 /** One xterm write per rAF, capped so a huge burst still yields. */
 const MAX_FRAME_WRITE_BYTES = 192 * 1024;
+/**
+ * xterm sends Enter, Shift+Enter and Ctrl+Enter as the same bare `\r`, so an
+ * agent can't tell them apart and submits all three. On macOS the modified
+ * ones send what Claude Code reads for them instead:
+ * - Shift+Enter: ESC+CR, the Meta+Enter that ⌥Enter already sends here and
+ *   VS Code's `/terminal-setup` keybinding sends — a new line.
+ * - Ctrl+Enter: its kitty CSI-u encoding, which Claude Code binds to
+ *   `chat:sendNow`. A shell's line editor doesn't understand it.
+ */
+const SHIFT_ENTER_SEQUENCE = "\x1b\r";
+const CTRL_ENTER_SEQUENCE = "\x1b[13;5u";
+
+/**
+ * What plain Shift+Enter or Ctrl+Enter sends on a macOS host, outside an IME
+ * composition; `null` leaves the key to xterm.
+ */
+export function modifiedEnterSequence(
+  event: KeyboardEvent,
+  mac: boolean = isMacHost(),
+): string | null {
+  if (
+    !mac ||
+    event.type !== "keydown" ||
+    event.key !== "Enter" ||
+    event.metaKey ||
+    event.altKey ||
+    event.isComposing
+  ) {
+    return null;
+  }
+  if (event.shiftKey && !event.ctrlKey) {
+    return SHIFT_ENTER_SEQUENCE;
+  }
+  if (event.ctrlKey && !event.shiftKey) {
+    return CTRL_ENTER_SEQUENCE;
+  }
+  return null;
+}
 
 export interface ConfiguredTerminal {
   terminal: Terminal;
@@ -76,6 +115,13 @@ export function createConfiguredTerminal(): ConfiguredTerminal {
     if (isTerminalPasteKey(event)) {
       event.preventDefault();
       pasteClipboardIntoTerminal(terminal);
+      return false;
+    }
+
+    const enterSequence = modifiedEnterSequence(event);
+    if (enterSequence) {
+      event.preventDefault();
+      terminal.input(enterSequence);
       return false;
     }
 

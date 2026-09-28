@@ -1,4 +1,5 @@
 import { NEEDS_ATTENTION, type PaneActivity } from "../types/activity";
+import { msg } from "../i18n";
 
 const notifiedKeys = new Set<string>();
 
@@ -28,10 +29,10 @@ export async function notifySessionAttention(
 
   const body =
     activity === "error"
-      ? `${sessionTitle} encontrou um erro`
+      ? msg.core.notifications.error(sessionTitle)
       : activity === "agent_fallback"
-        ? `${sessionTitle}: o agent caiu — shell ativo`
-        : `${sessionTitle} precisa de atenção`;
+        ? msg.core.notifications.agentFallback(sessionTitle)
+        : msg.core.notifications.attention(sessionTitle);
 
   await window.headTerminal.notifications.show({
     title: "Head Terminal",

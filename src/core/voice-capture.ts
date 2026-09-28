@@ -6,6 +6,8 @@
  * upload.
  */
 
+import { msg } from "../i18n";
+
 /** Containers asked for in order; Chromium picks the first it can encode. */
 const PREFERRED_TYPES = [
   "audio/webm;codecs=opus",
@@ -44,9 +46,9 @@ function releaseCapture(capture: ActiveCapture): void {
 }
 
 export async function startCapture(): Promise<void> {
-  if (active) throw new Error("Já existe uma gravação em andamento.");
+  if (active) throw new Error(msg.brainstorm.dictation.alreadyRecording);
   if (!isCaptureSupported()) {
-    throw new Error("Este sistema não expõe captura de áudio ao aplicativo.");
+    throw new Error(msg.brainstorm.dictation.unsupported);
   }
 
   let stream: MediaStream;
@@ -58,8 +60,8 @@ export async function startCapture(): Promise<void> {
     const denied = (error as DOMException)?.name === "NotAllowedError";
     throw new Error(
       denied
-        ? "Acesso ao microfone negado. Libere o microfone para o aplicativo nas configurações do sistema."
-        : "Não foi possível abrir o microfone.",
+        ? msg.brainstorm.errors.microphoneDenied
+        : msg.brainstorm.errors.microphoneUnavailable,
     );
   }
 
@@ -75,7 +77,7 @@ export async function startCapture(): Promise<void> {
     recorder.start();
   } catch (error) {
     releaseCapture(capture);
-    throw new Error("Não foi possível iniciar a gravação.");
+    throw new Error(msg.brainstorm.dictation.startFailed);
   }
 }
 
@@ -85,18 +87,18 @@ function collect(capture: ActiveCapture): Promise<Blob> {
     capture.recorder.onstop = () => {
       resolve(new Blob(capture.chunks, { type: capture.recorder.mimeType }));
     };
-    capture.recorder.onerror = () => reject(new Error("Falha ao gravar o áudio."));
+    capture.recorder.onerror = () => reject(new Error(msg.brainstorm.dictation.recordFailed));
     try {
       capture.recorder.stop();
     } catch {
-      reject(new Error("Falha ao encerrar a gravação."));
+      reject(new Error(msg.brainstorm.dictation.stopFailed));
     }
   });
 }
 
 export async function stopCaptureAndTranscribe(): Promise<string> {
   const capture = active;
-  if (!capture) throw new Error("Nenhuma gravação em andamento.");
+  if (!capture) throw new Error(msg.brainstorm.dictation.notRecording);
 
   try {
     const blob = await collect(capture);

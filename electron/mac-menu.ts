@@ -1,5 +1,7 @@
 import { Menu, type MenuItemConstructorOptions } from "electron";
 
+import { msg } from "../src/i18n";
+
 /**
  * macOS needs an application menu: without one Electron installs its default,
  * whose accelerators collide with a terminal — ⌘W closes the whole window
@@ -47,7 +49,7 @@ export function buildMacApplicationMenu(options: {
         ["undo", "redo", "cut", "copy", "paste", "selectAll"] as const
       ).map((role) => ({ role, registerAccelerator: false })),
     },
-    { label: "View", submenu: view },
+    { label: msg.main.menu.view, submenu: view },
     {
       role: "windowMenu",
       submenu: [{ role: "minimize" }, { role: "zoom" }, { type: "separator" }, { role: "front" }],

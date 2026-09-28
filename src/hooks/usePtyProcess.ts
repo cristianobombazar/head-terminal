@@ -19,6 +19,7 @@ import { notifyUiReady } from "../core/startup-watchdog";
 import { fitPanes } from "../core/pane-fit-registry";
 import { paneSupervisor } from "../core/pane-supervisor";
 import {
+  attachPtyAgentListener,
   attachPtyDataListener,
   attachPtyExitListener,
   createPtyBridge,
@@ -28,6 +29,7 @@ import {
 import { useSessionStore } from "../core/session-manager";
 import { createRafPtyWriter } from "../core/terminal-factory";
 import { WorkspaceDetector } from "../core/workspace-detector";
+import { msg } from "../i18n";
 import type { TerminalInstance } from "./useTerminalInstance";
 
 interface UsePtyProcessOptions {
@@ -141,9 +143,7 @@ export function usePtyProcess({
           resumeSessionId,
           exitCode,
         });
-        terminal.writeln(
-          "\x1b[2m── conversa anterior não pôde ser retomada, iniciando uma nova ──\x1b[0m",
-        );
+        terminal.writeln(`\x1b[2m${msg.terminal.notices.resumeFailed}\x1b[0m`);
         // Until the new conversation is identified the pane has none: better
         // an honest "nova conversa" in the header than the name of the one
         // the CLI just refused, which is also what a restart would retry.
@@ -226,9 +226,7 @@ export function usePtyProcess({
         if (instance.spawnCount.current > 0) {
           const attempt = instance.spawnCount.current + 1;
           terminal.writeln("");
-          terminal.writeln(
-            `\x1b[2m── sessão reiniciada (tentativa ${attempt}) ─────────────────\x1b[0m`,
-          );
+          terminal.writeln(`\x1b[2m${msg.terminal.notices.restarted(attempt)}\x1b[0m`);
         }
         instance.spawnCount.current += 1;
 
@@ -269,10 +267,18 @@ export function usePtyProcess({
             }
             writePtyData(data);
           }),
+          attachPtyAgentListener(bridge.pty, (agent) => {
+            if (!disposed) {
+              useSessionStore.getState().updatePaneRunningAgent(paneId, agent);
+            }
+          }),
           attachPtyExitListener(bridge.pty, (exitCode) => {
             terminal.writeln("");
-            terminal.writeln(`[Processo encerrado com código ${exitCode}]`);
+            terminal.writeln(msg.terminal.notices.processExited(exitCode));
             updatePaneStatus(paneId, "exited");
+            // The poller stops watching a dead pane, so nothing would report
+            // the CLI gone: a crash must not leave the Claude icon behind.
+            useSessionStore.getState().updatePaneRunningAgent(paneId, null);
             activityDetector.onExit(exitCode);
             // Dead PTYs must not swallow toolbar commands (§2.4).
             unregisterPtyWriter(paneId);
@@ -316,8 +322,8 @@ export function usePtyProcess({
       } catch (error) {
         logError("js.pty.spawn_failed", error, { paneId, sessionId });
         const message =
-          error instanceof Error ? error.message : "Falha ao iniciar o PTY";
-        terminal.writeln(`\r\n[Erro] ${message}\r\n`);
+          error instanceof Error ? error.message : msg.terminal.notices.spawnFailed;
+        terminal.writeln(`\r\n${msg.terminal.notices.error(message)}\r\n`);
         updatePaneStatus(paneId, "exited");
         activityDetector.onError();
       }

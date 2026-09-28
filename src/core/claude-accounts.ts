@@ -1,5 +1,6 @@
 import { joinPath } from "./path-utils";
 import { getCachedPlatformInfo } from "./platform-info";
+import { msg } from "../i18n";
 
 const STORAGE_KEY = "head-terminal.claude-accounts";
 const DEFAULT_NAME_KEY = "head-terminal.claude-default-account-name";
@@ -14,8 +15,6 @@ export interface ClaudeAccountProfile {
    * Absent only while the host's home directory is still unknown. */
   configDir?: string;
 }
-
-const DEFAULT_PROFILE_NAME = "Conta padrão";
 
 /**
  * Every profile, the default included, lives in its own directory. A pane
@@ -36,7 +35,7 @@ function defaultProfile(): ClaudeAccountProfile {
   const home = getCachedPlatformInfo()?.homeDir;
   return {
     id: DEFAULT_CLAUDE_ACCOUNT_ID,
-    name: savedName || DEFAULT_PROFILE_NAME,
+    name: savedName || msg.core.claudeAccounts.defaultName,
     configDir: home ? claudeProfileConfigDir(home, DEFAULT_CLAUDE_ACCOUNT_ID) : undefined,
   };
 }
@@ -85,7 +84,7 @@ function validateName(
 ): string {
   const trimmedName = name.trim();
   if (!trimmedName || trimmedName.length > 40) {
-    throw new Error("Informe um nome de até 40 caracteres");
+    throw new Error(msg.core.claudeAccounts.nameInvalid);
   }
   if (
     profiles.some(
@@ -94,7 +93,7 @@ function validateName(
         profile.name.toLocaleLowerCase() === trimmedName.toLocaleLowerCase(),
     )
   ) {
-    throw new Error("Já existe um perfil com esse nome");
+    throw new Error(msg.core.claudeAccounts.nameTaken);
   }
   return trimmedName;
 }
@@ -128,7 +127,7 @@ export function renameClaudeAccountProfile(id: string, name: string): void {
 
   const customProfiles = loadCustomProfiles();
   if (!customProfiles.some((profile) => profile.id === id)) {
-    throw new Error("Perfil Claude não encontrado");
+    throw new Error(msg.core.claudeAccounts.notFound);
   }
   localStorage.setItem(
     STORAGE_KEY,
@@ -142,12 +141,12 @@ export function renameClaudeAccountProfile(id: string, name: string): void {
 
 export function deleteClaudeAccountProfile(id: string): void {
   if (id === DEFAULT_CLAUDE_ACCOUNT_ID) {
-    throw new Error("A conta padrão não pode ser excluída");
+    throw new Error(msg.core.claudeAccounts.defaultNotDeletable);
   }
 
   const profiles = loadCustomProfiles();
   if (!profiles.some((profile) => profile.id === id)) {
-    throw new Error("Perfil Claude não encontrado");
+    throw new Error(msg.core.claudeAccounts.notFound);
   }
   localStorage.setItem(
     STORAGE_KEY,
@@ -171,12 +170,10 @@ export function getClaudeAccountProfile(
 export function resolveClaudeConfigDir(id?: string): string {
   const profile = getClaudeAccountProfile(id);
   if (!profile) {
-    throw new Error("Perfil Claude não encontrado. Escolha outro perfil nas configurações.");
+    throw new Error(msg.core.claudeAccounts.notFoundPickAnother);
   }
   if (!profile.configDir) {
-    throw new Error(
-      "Diretório do perfil Claude indisponível: a pasta do usuário ainda não é conhecida.",
-    );
+    throw new Error(msg.core.claudeAccounts.configDirUnavailable);
   }
   return profile.configDir;
 }

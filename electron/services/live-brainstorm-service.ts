@@ -15,6 +15,7 @@ import { readAgentConversation, type AgentConversation } from "./agent-conversat
 import { resolveAgentSessionRoots } from "./agent-sessions-service";
 import { runCommand } from "./command-runner";
 import { killWindowsProcessTree } from "./windows-shell";
+import { msg } from "../../src/i18n";
 
 /**
  * Voice brainstorm. GPT-Live holds the spoken conversation and hands code
@@ -344,8 +345,10 @@ export function isBroadFolder(cwd: string, homeDir: string): boolean {
   return resolved === path.resolve(homeDir) || path.dirname(resolved) === resolved;
 }
 
-export const BROAD_FOLDER_WARNING =
-  "Este terminal está na pasta pessoal, não em um projeto. Diga por voz \"abre a pasta <nome>\" ou abra um terminal na pasta do projeto.";
+/** Shown on the panel; read when asked, since main learns its language late. */
+export function broadFolderWarning(): string {
+  return msg.main.brainstorm.broadFolderWarning;
+}
 
 /** Startup history: facts about the project the model would otherwise have to ask for. */
 export function buildSessionInput(
@@ -536,7 +539,7 @@ function parseResultJson(stdout: string): AgentReply {
         : null;
     const costUsd = typeof data.total_cost_usd === "number" ? data.total_cost_usd : null;
     return data.is_error === true
-      ? { text: "", sessionId, error: text || "o agente reportou um erro", costUsd }
+      ? { text: "", sessionId, error: text || msg.main.brainstorm.agentReportedError, costUsd }
       : { text, sessionId, error: null, costUsd };
   }
   return { text: "", sessionId: null, error: null };
@@ -593,7 +596,7 @@ export function parseAgentReply(
     ...reply,
     error:
       lastMeaningfulLine(stderr)
-      ?? (code === 0 ? "resposta vazia" : `saiu com código ${code ?? "desconhecido"}`),
+      ?? (code === 0 ? msg.main.brainstorm.emptyReply : msg.main.brainstorm.exitedWith(code)),
   };
 }
 
@@ -601,17 +604,17 @@ function describeClaudeTool(name: string, input: Record<string, unknown>): strin
   const str = (key: string) => (typeof input[key] === "string" ? (input[key] as string) : "");
   switch (name) {
     case "Read":
-      return str("file_path") ? `lendo ${path.basename(str("file_path"))}` : "lendo um arquivo";
+      return str("file_path") ? msg.main.brainstorm.steps.reading(path.basename(str("file_path"))) : msg.main.brainstorm.steps.readingAFile;
     case "Grep":
-      return str("pattern") ? `buscando "${str("pattern")}" no código` : "buscando no código";
+      return str("pattern") ? msg.main.brainstorm.steps.searchingFor(str("pattern")) : msg.main.brainstorm.steps.searchingCode;
     case "Glob":
-      return str("pattern") ? `listando ${str("pattern")}` : "listando arquivos";
+      return str("pattern") ? msg.main.brainstorm.steps.listing(str("pattern")) : msg.main.brainstorm.steps.listingFiles;
     case "WebSearch":
-      return str("query") ? `pesquisando na web: ${str("query")}` : "pesquisando na web";
+      return str("query") ? msg.main.brainstorm.steps.searchingWebFor(str("query")) : msg.main.brainstorm.steps.searchingWeb;
     case "WebFetch":
-      return str("url") ? `abrindo ${str("url")}` : "abrindo uma página";
+      return str("url") ? msg.main.brainstorm.steps.opening(str("url")) : msg.main.brainstorm.steps.openingAPage;
     default:
-      return `usando ${name}`;
+      return msg.main.brainstorm.steps.using(name);
   }
 }
 
@@ -663,14 +666,14 @@ export function describeAgentEvent(
   if (agent === "codex" && event.type === "item.started") {
     const item = event.item as { type?: unknown; command?: unknown; query?: unknown } | undefined;
     if (item?.type === "command_execution" && typeof item.command === "string") {
-      return { text: shorten(`rodando ${item.command}`, PROGRESS_MAX_CHARS) };
+      return { text: shorten(msg.main.brainstorm.steps.running(item.command), PROGRESS_MAX_CHARS) };
     }
     if (item?.type === "web_search") {
       return {
         text:
           typeof item.query === "string"
-            ? shorten(`pesquisando na web: ${item.query}`, PROGRESS_MAX_CHARS)
-            : "pesquisando na web",
+            ? shorten(msg.main.brainstorm.steps.searchingWebFor(item.query), PROGRESS_MAX_CHARS)
+            : msg.main.brainstorm.steps.searchingWeb,
       };
     }
   }
@@ -713,7 +716,7 @@ export class LiveBrainstormService {
   async createSession(input: LiveSessionInput): Promise<LiveSessionAnswer> {
     const apiKey = (await this.secrets.get("openai-api-key"))?.trim() ?? "";
     if (!apiKey) {
-      throw new Error("Configure sua chave da OpenAI nas Configurações.");
+      throw new Error(msg.main.openAi.missingApiKey);
     }
     await this.assertDirectory(input.cwd);
     // The first delegation should not wait on a PATH search.
@@ -752,9 +755,9 @@ export class LiveBrainstormService {
       });
     } catch (error) {
       if (abort.signal.aborted) {
-        throw new Error("A OpenAI demorou demais para abrir a conversa.");
+        throw new Error(msg.main.brainstorm.openTimeout);
       }
-      throw new Error("Falha de rede ao contatar a OpenAI.", { cause: error });
+      throw new Error(msg.main.openAi.network, { cause: error });
     } finally {
       clearTimeout(timeout);
     }
@@ -768,16 +771,16 @@ export class LiveBrainstormService {
       const detail =
         typeof body.error?.message === "string"
           ? body.error.message
-          : `Erro HTTP ${response.status}`;
-      throw new Error(`Não foi possível abrir a conversa por voz: ${detail}`);
+          : msg.main.openAi.httpError(response.status);
+      throw new Error(msg.main.brainstorm.openFailed(detail));
     }
     if (typeof body.transport?.sdp !== "string" || !body.transport.sdp) {
-      throw new Error("A OpenAI não devolveu a resposta de conexão (SDP).");
+      throw new Error(msg.main.brainstorm.noSdp);
     }
     return {
       sessionId: typeof body.session?.id === "string" ? body.session.id : null,
       sdp: body.transport.sdp,
-      warning: broadFolder ? BROAD_FOLDER_WARNING : null,
+      warning: broadFolder ? broadFolderWarning() : null,
       ...(paneConversation === undefined
         ? {}
         : {
@@ -828,7 +831,7 @@ export class LiveBrainstormService {
     // Cursor has no fork: resuming the pane's chat would write into it.
     const resume = input.agent === "cursor" && input.resume?.fork ? undefined : input.resume;
     if (resume && !AGENT_SESSION_ID_PATTERN.test(resume.sessionId)) {
-      throw new TypeError("Id de conversa do agente inválido.");
+      throw new TypeError(msg.main.brainstorm.invalidAgentSessionId);
     }
     await this.assertDirectory(input.cwd);
     const attachments = await this.checkAttachments(input.attachments ?? []);
@@ -843,7 +846,7 @@ export class LiveBrainstormService {
     if (reply.error && resume) {
       // The conversation to continue can be gone (cleared, another account);
       // a fresh one still answers, only without the earlier context.
-      onProgress?.({ text: "a conversa anterior não pôde ser retomada; recomeçando do zero" });
+      onProgress?.({ text: msg.main.brainstorm.resumeFailed });
       const fresh = buildAgentPrompt({ transcript: input.transcript, attachments });
       reply = await this.runOnce(ownerId, input, fresh, undefined, onProgress);
     }
@@ -929,16 +932,16 @@ export class LiveBrainstormService {
   /** Only images that exist reach the prompt; the agent reads them by path. */
   private async checkAttachments(paths: string[]): Promise<string[]> {
     if (paths.length > MAX_ATTACHMENTS) {
-      throw new Error(`No máximo ${MAX_ATTACHMENTS} imagens por análise.`);
+      throw new Error(msg.main.brainstorm.tooManyImages(MAX_ATTACHMENTS));
     }
     const kept: string[] = [];
     for (const candidate of paths) {
       const resolved = path.resolve(candidate);
       if (!IMAGE_FILE.test(resolved)) {
-        throw new Error(`Anexo não é uma imagem: ${path.basename(resolved)}`);
+        throw new Error(msg.main.brainstorm.notAnImage(path.basename(resolved)));
       }
       if (!(await isFile(resolved))) {
-        throw new Error(`Imagem anexada não foi encontrada: ${path.basename(resolved)}`);
+        throw new Error(msg.main.brainstorm.imageNotFound(path.basename(resolved)));
       }
       kept.push(resolved);
     }
@@ -1033,11 +1036,11 @@ export class LiveBrainstormService {
     const exe = found.find((candidate) => /\.exe$/iu.test(candidate));
     if (exe) return { command: exe, shell: false };
     const script = found.find((candidate) => /\.(cmd|bat)$/iu.test(candidate));
-    if (!script) throw new Error(`${name} não foi encontrado no PATH do Windows.`);
+    if (!script) throw new Error(msg.main.brainstorm.windowsCliNotFound(name));
     // npm installs a .cmd shim, which only cmd.exe can start. The prompt goes
     // on stdin, so argv holds nothing but fixed flags and validated ids.
     if (!args.every((arg) => SHELL_SAFE_ARG.test(arg))) {
-      throw new Error(`Argumentos inseguros para iniciar ${name} pelo cmd.exe.`);
+      throw new Error(msg.main.brainstorm.unsafeWindowsArgs(name));
     }
     return { command: `"${script}"`, shell: true };
   }
@@ -1046,7 +1049,7 @@ export class LiveBrainstormService {
   private async cursorEntryPoint(): Promise<{ node: string; script: string }> {
     const found = await this.lookup("cursor-agent");
     const shim = found[0];
-    if (!shim) throw new Error("cursor-agent não foi encontrado no PATH do Windows.");
+    if (!shim) throw new Error(msg.main.brainstorm.cursorNotFound);
     const base = path.dirname(shim);
     if (await isFile(path.join(base, "node.exe"))) {
       return { node: path.join(base, "node.exe"), script: path.join(base, "index.js") };
@@ -1055,7 +1058,7 @@ export class LiveBrainstormService {
       .filter((name) => CURSOR_VERSION_DIR.test(name))
       .sort(compareCursorVersions);
     const newest = versions[0];
-    if (!newest) throw new Error(`Nenhuma versão do Cursor Agent instalada em ${base}.`);
+    if (!newest) throw new Error(msg.main.brainstorm.cursorNotInstalled(base));
     const dir = path.join(base, "versions", newest);
     return { node: path.join(dir, "node.exe"), script: path.join(dir, "index.js") };
   }
@@ -1073,7 +1076,7 @@ export class LiveBrainstormService {
 
   /** Exactly one level below the profiles root: a pane profile, never ~/.claude. */
   private claudeConfigDir(dir: string | undefined): string {
-    if (!dir) throw new Error("O terminal não informou o perfil Claude.");
+    if (!dir) throw new Error(msg.main.brainstorm.noClaudeProfile);
     const root = path.resolve(this.homeDir, ".head-terminal", "claude-profiles");
     const target = path.resolve(dir);
     const relative = path.relative(root, target);
@@ -1083,7 +1086,7 @@ export class LiveBrainstormService {
       || path.isAbsolute(relative)
       || relative.includes(path.sep)
     ) {
-      throw new Error("Perfil Claude fora de ~/.head-terminal/claude-profiles.");
+      throw new Error(msg.main.brainstorm.claudeProfileOutside);
     }
     return target;
   }
@@ -1091,7 +1094,7 @@ export class LiveBrainstormService {
   private async assertDirectory(cwd: string): Promise<void> {
     const info = await stat(cwd).catch(() => null);
     if (!info?.isDirectory()) {
-      throw new Error(`Pasta do terminal não encontrada: ${cwd}`);
+      throw new Error(msg.main.brainstorm.folderNotFound(cwd));
     }
   }
 
@@ -1104,7 +1107,7 @@ export class LiveBrainstormService {
     onLine?: (line: string) => void,
   ): Promise<{ code: number | null; stdout: string; stderr: string }> {
     if (this.running.has(delegationId)) {
-      return Promise.reject(new Error("Essa análise já está em andamento."));
+      return Promise.reject(new Error(msg.main.brainstorm.alreadyRunning));
     }
 
     return new Promise((resolve, reject) => {
@@ -1118,7 +1121,7 @@ export class LiveBrainstormService {
           detached: this.platform !== "win32",
         });
       } catch (error) {
-        reject(new Error(`Não foi possível iniciar o ${label}: ${errorMessage(error)}`));
+        reject(new Error(msg.main.brainstorm.startFailed(label, errorMessage(error))));
         return;
       }
 
@@ -1146,7 +1149,7 @@ export class LiveBrainstormService {
       const timeout = timer(this.delegationTimeoutMs, () => {
         void this.terminate(child);
         const minutes = Math.max(1, Math.round(this.delegationTimeoutMs / 60_000));
-        settle(new DelegationStopped(`O ${label} passou de ${minutes} min e foi interrompido.`));
+        settle(new DelegationStopped(msg.main.brainstorm.timedOut(label, minutes)));
       });
 
       child.stdout?.on("data", (chunk) => {
@@ -1154,7 +1157,7 @@ export class LiveBrainstormService {
         size += buffer.length;
         if (size > OUTPUT_MAX_BYTES) {
           void this.terminate(child);
-          settle(new DelegationStopped(`A resposta do ${label} ficou grande demais.`));
+          settle(new DelegationStopped(msg.main.brainstorm.replyTooLarge(label)));
           return;
         }
         chunks.push(buffer);
@@ -1174,10 +1177,10 @@ export class LiveBrainstormService {
         stderr = (stderr + chunk.toString()).slice(-STDERR_TAIL_CHARS);
       });
       child.once("error", (error) =>
-        settle(new Error(`Não foi possível iniciar o ${label}: ${error.message}`)),
+        settle(new Error(msg.main.brainstorm.startFailed(label, error.message))),
       );
       child.once("close", (code) =>
-        settle(entry.cancelled ? new DelegationStopped("Análise cancelada.") : { code }),
+        settle(entry.cancelled ? new DelegationStopped(msg.main.brainstorm.cancelled) : { code }),
       );
 
       // EPIPE when the CLI exits before reading its prompt; `close` reports it.

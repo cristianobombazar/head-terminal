@@ -1,6 +1,10 @@
+import { msg } from "../i18n";
+
 /** Shown in the pane header and treated as "not yet a conversation" in
  * history until the CLI transcript is identified. */
-export const NEW_CONVERSATION_LABEL = "nova conversa";
+export function newConversationLabel(): string {
+  return msg.core.conversation.newConversation;
+}
 
 export interface PaneConversationView {
   /** Name to show: user's label, transcript title, or a short id fallback.
@@ -21,13 +25,13 @@ export function resolvePaneConversationView(input: {
 }): PaneConversationView {
   const custom = input.customLabel;
   const fallback = input.cliSessionId
-    ? `conversa ${input.cliSessionId.slice(0, 8)}`
+    ? msg.core.conversation.fallbackName(input.cliSessionId.slice(0, 8))
     : null;
   const name = custom ?? (input.cliSessionId ? (input.title ?? fallback) : null);
 
   return {
     name,
     isCustom: Boolean(custom),
-    displayName: name ?? NEW_CONVERSATION_LABEL,
+    displayName: name ?? newConversationLabel(),
   };
 }

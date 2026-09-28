@@ -8,6 +8,7 @@ import {
   tryGit,
   validateCwd,
 } from "./git-service";
+import { msg } from "../../src/i18n";
 
 // Vários agents no mesmo repositório brigam pelo mesmo working tree: index.lock,
 // status misturado, commit de um entrando no outro. A saída é dar a cada
@@ -312,7 +313,7 @@ export async function createSessionWorktree(
 ): Promise<WorktreeInfo> {
   const identity = await resolveRepoIdentity(cwd);
   if (!identity) {
-    throw new Error("O diretório não é um repositório git");
+    throw new Error(msg.main.git.notARepository);
   }
 
   // Sempre a partir do repositório principal: um worktree criado de dentro de
@@ -419,10 +420,10 @@ export async function removeSessionWorktree(input: {
   const path = validateCwd(input.path);
   const identity = await resolveRepoIdentity(path);
   if (!identity) {
-    throw new Error("O diretório não é um worktree git");
+    throw new Error(msg.main.git.notAWorktree);
   }
   if (!identity.isLinkedWorktree) {
-    throw new Error("Este diretório é o repositório principal, não um worktree");
+    throw new Error(msg.main.git.mainRepository);
   }
 
   const { mainRepoRoot } = identity;

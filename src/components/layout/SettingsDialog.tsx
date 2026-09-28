@@ -18,13 +18,21 @@ import {
   renameClaudeAccountProfile,
   type ClaudeAccountProfile,
 } from "../../core/claude-accounts";
-import { logEvent } from "../../core/logger";
+import { logError, logEvent } from "../../core/logger";
 import { fetchMcpServers, type McpServerStatus } from "../../core/mcp-bridge";
 import {
   persistOpenAiApiKey,
   hasOpenAiApiKey,
 } from "../../core/openai-credentials";
 import { useSessionStore } from "../../core/session-manager";
+import {
+  LOCALE_NAMES,
+  locale,
+  msg,
+  setLocale,
+  type LanguagePreference,
+  type Locale,
+} from "../../i18n";
 import { setThemePreference } from "../../core/theme-manager";
 import {
   loadCopyOnSelect,
@@ -150,6 +158,9 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
   const [apiKeySaveError, setApiKeySaveError] = useState<string | null>(null);
   const [savingApiKey, setSavingApiKey] = useState(false);
   const [mcpByAgent, setMcpByAgent] = useState<Record<string, McpAgentState>>({});
+  const [languagePreference, setLanguagePreferenceState] =
+    useState<LanguagePreference>("auto");
+  const [systemLocale, setSystemLocale] = useState<Locale>(locale);
 
   const refreshAccounts = () => {
     const accounts = loadClaudeAccountProfiles();
@@ -172,6 +183,13 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
     setClaudeAccountError(null);
     setApiKeySaveError(null);
     refreshAccounts();
+    void window.headTerminal.app
+      .getStartupContext()
+      .then((context) => {
+        setLanguagePreferenceState(context.languagePreference);
+        setSystemLocale(context.systemLocale);
+      })
+      .catch((error) => logError("settings.language_load_failed", error));
   }, [open]);
 
   useEffect(() => {
@@ -257,18 +275,17 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
     const linked = linkedSessionCount(account.id);
     if (linked > 0) {
       setClaudeAccountError(
-        `Feche ${linked} sessão(ões) vinculada(s) antes de excluir este perfil.`,
+        msg.settings.deleteBlocked(linked),
       );
       return;
     }
 
     const confirmed = await window.headTerminal.system.confirm({
-      title: "Excluir perfil Claude",
-      message: `Excluir “${account.name}”?`,
-      detail:
-        "Credenciais, configurações e histórico locais deste perfil serão removidos. Sua conta Claude não será excluída.",
-      confirmLabel: "Excluir",
-      cancelLabel: "Cancelar",
+      title: msg.settings.deleteConfirmTitle,
+      message: msg.settings.deleteConfirmMessage(account.name),
+      detail: msg.settings.deleteConfirmDetail,
+      confirmLabel: msg.settings.deleteConfirm,
+      cancelLabel: msg.settings.cancel,
     });
     if (!confirmed) return;
 
@@ -351,18 +368,18 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
         className="settings-dialog"
         role="dialog"
         aria-modal="true"
-        aria-label="Configurações"
+        aria-label={msg.settings.title}
         onClick={(event) => event.stopPropagation()}
       >
         <header className="settings-dialog__header">
           <div>
-            <h2>Configurações</h2>
-            <span>Personalize o terminal e suas integrações</span>
+            <h2>{msg.settings.title}</h2>
+            <span>{msg.settings.subtitle}</span>
           </div>
           <button
             type="button"
             className="settings-icon-button"
-            aria-label="Fechar configurações"
+            aria-label={msg.settings.closeAria}
             onClick={onClose}
           >
             <IconClose size={16} />
@@ -370,14 +387,14 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
         </header>
 
         <div className="settings-dialog__body">
-          <nav className="settings-nav" aria-label="Seções das configurações">
+          <nav className="settings-nav" aria-label={msg.settings.sectionsAria}>
             <button
               type="button"
               className={activeSection === "terminal" ? "settings-nav__item settings-nav__item--active" : "settings-nav__item"}
               onClick={() => setActiveSection("terminal")}
             >
               <IconSliders size={16} />
-              Terminal
+              {msg.settings.terminal}
             </button>
             <button
               type="button"
@@ -385,7 +402,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
               onClick={() => setActiveSection("profiles")}
             >
               <IconAgentClaude size={16} />
-              Perfis Claude
+              {msg.settings.profiles}
             </button>
             <button
               type="button"
@@ -393,7 +410,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
               onClick={() => setActiveSection("integrations")}
             >
               <IconPlug size={16} />
-              Integrações
+              {msg.settings.integrations}
             </button>
           </nav>
 
@@ -401,25 +418,54 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
             {activeSection === "terminal" && (
               <section className="settings-section">
                 <div className="settings-section__header">
-                  <h3>Terminal</h3>
-                  <p>Aparência e comportamento de todos os novos terminais.</p>
+                  <h3>{msg.settings.terminal}</h3>
+                  <p>{msg.settings.terminalDescription}</p>
                 </div>
                 <div className="settings-card settings-card--rows">
+                  <label className="settings-row">
+                    <span>
+                      <strong>{msg.settings.language}</strong>
+                      <small>{msg.settings.languageHint}</small>
+                    </span>
+                    <select
+                      className="settings-select--wide"
+                      value={languagePreference}
+                      onChange={(event) => {
+                        const value = event.target.value as LanguagePreference;
+                        setLanguagePreferenceState(value);
+                        // Main saves it and switches its menu and dialogs;
+                        // the renderer then switches to what "auto" means here.
+                        void window.headTerminal.app
+                          .setLanguage(value)
+                          .then((next) => {
+                            setLocale(next);
+                            document.documentElement.lang = next;
+                          })
+                          .catch((error) => logError("settings.language_save_failed", error));
+                      }}
+                    >
+                      <option value="auto">
+                        {msg.settings.languageAuto(LOCALE_NAMES[systemLocale])}
+                      </option>
+                      <option value="pt-BR">{LOCALE_NAMES["pt-BR"]}</option>
+                      <option value="en">{LOCALE_NAMES.en}</option>
+                    </select>
+                  </label>
                   <div className="settings-row">
                     <span>
-                      <strong>Tema</strong>
-                      <small>Vale para o app inteiro e para todos os terminais, na hora</small>
+                      <strong>{msg.settings.theme}</strong>
+                      <small>{msg.settings.themeHint}</small>
                     </span>
                   </div>
                   <div
                     className="settings-theme-grid"
                     role="radiogroup"
-                    aria-label="Tema"
+                    aria-label={msg.settings.theme}
                   >
                     <ThemeCard
                       theme={getTheme(resolveThemeId("system", systemPrefersDark()))}
-                      label="Automático"
-                      hint="segue o sistema"
+                      label={msg.settings.themeAuto}
+                      hint={msg.settings.themeAutoHint}
                       active={themePreference === "system"}
                       onSelect={() => {
                         setThemePreferenceState("system");
@@ -431,7 +477,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
                         key={theme.id}
                         theme={theme}
                         label={theme.name}
-                        hint={theme.kind === "light" ? "claro" : "escuro"}
+                        hint={theme.kind === "light" ? msg.settings.themeLight : msg.settings.themeDark}
                         active={themePreference === theme.id}
                         onSelect={() => {
                           setThemePreferenceState(theme.id);
@@ -442,8 +488,8 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
                   </div>
                   <label className="settings-row">
                     <span>
-                      <strong>Tamanho da fonte</strong>
-                      <small>Entre 8 e 24 pixels</small>
+                      <strong>{msg.settings.fontSize}</strong>
+                      <small>{msg.settings.fontSizeHint}</small>
                     </span>
                     <input
                       type="number"
@@ -459,8 +505,8 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
                   </label>
                   <label className="settings-row">
                     <span>
-                      <strong>Renderização</strong>
-                      <small>WebGL é mais rápido; DOM é mais compatível</small>
+                      <strong>{msg.settings.renderer}</strong>
+                      <small>{msg.settings.rendererHint}</small>
                     </span>
                     <select
                       value={renderer}
@@ -470,15 +516,15 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
                         saveRendererPreference(value);
                       }}
                     >
-                      <option value="auto">Automática</option>
+                      <option value="auto">{msg.settings.rendererAuto}</option>
                       <option value="webgl">WebGL</option>
                       <option value="dom">DOM</option>
                     </select>
                   </label>
                   <label className="settings-row">
                     <span>
-                      <strong>Copiar ao selecionar</strong>
-                      <small>Envia o texto selecionado para a área de transferência</small>
+                      <strong>{msg.settings.copyOnSelect}</strong>
+                      <small>{msg.settings.copyOnSelectHint}</small>
                     </span>
                     <input
                       type="checkbox"
@@ -498,11 +544,8 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
               <section className="settings-section">
                 <div className="settings-section__header settings-section__header--action">
                   <div>
-                    <h3>Perfis Claude</h3>
-                    <p>
-                      Cada perfil mantém login, histórico e configurações separados —
-                      e nada aqui toca o ~/.claude dos terminais abertos fora do Head Terminal.
-                    </p>
+                    <h3>{msg.settings.profiles}</h3>
+                    <p>{msg.settings.profilesDescription}</p>
                   </div>
                   <button
                     type="button"
@@ -513,7 +556,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
                     }}
                   >
                     <IconPlus size={14} />
-                    Novo perfil
+                    {msg.settings.newProfile}
                   </button>
                 </div>
 
@@ -532,15 +575,15 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
                     }}
                   >
                     <div>
-                      <strong>Novo perfil</strong>
-                      <span>Escolha um nome fácil de reconhecer nas sessões.</span>
+                      <strong>{msg.settings.newProfile}</strong>
+                      <span>{msg.settings.newProfileHint}</span>
                     </div>
                     <input
                       autoFocus
                       type="text"
                       maxLength={40}
                       value={newClaudeAccountName}
-                      placeholder="Ex.: Empresa"
+                      placeholder={msg.settings.newProfilePlaceholder}
                       onChange={(event) => {
                         setNewClaudeAccountName(event.target.value);
                         setClaudeAccountError(null);
@@ -554,14 +597,14 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
                         setNewClaudeAccountName("");
                       }}
                     >
-                      Cancelar
+                      {msg.settings.cancel}
                     </button>
                     <button
                       type="submit"
                       className="settings-primary-button"
                       disabled={!newClaudeAccountName.trim()}
                     >
-                      Criar perfil
+                      {msg.settings.createProfile}
                     </button>
                   </form>
                 )}
@@ -608,17 +651,17 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
                               <strong>{account.name}</strong>
                             )}
                             <span className={isDefault ? "settings-profile-tag" : "settings-profile-tag settings-profile-tag--isolated"}>
-                              {isDefault ? "Padrão" : "Isolado"}
+                              {isDefault ? msg.settings.defaultTag : msg.settings.isolatedTag}
                             </span>
                           </div>
                           <span className="settings-profile-card__detail">
                             {isDefault
-                              ? "Perfil inicial das sessões Claude; login e histórico só neste perfil"
-                              : "Login e histórico reutilizados apenas neste perfil"}
+                              ? msg.settings.defaultDetail
+                              : msg.settings.isolatedDetail}
                           </span>
                           {linked > 0 && (
                             <span className="settings-profile-card__sessions">
-                              {linked} sessão(ões) vinculada(s)
+                              {msg.settings.linkedSessions(linked)}
                             </span>
                           )}
                         </div>
@@ -626,8 +669,8 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
                           <button
                             type="button"
                             className="settings-icon-button"
-                            title={isEditing ? "Salvar nome" : "Renomear perfil"}
-                            aria-label={isEditing ? "Salvar nome" : `Renomear ${account.name}`}
+                            title={isEditing ? msg.settings.saveName : msg.settings.renameProfile}
+                            aria-label={isEditing ? msg.settings.saveName : msg.settings.renameProfileAria(account.name)}
                             onMouseDown={(event) => {
                               if (isEditing) event.preventDefault();
                             }}
@@ -639,7 +682,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
                             {isEditing ? <IconCheck /> : <IconPencil />}
                           </button>
                           {isDefault ? (
-                            <span className="settings-icon-button settings-icon-button--static" title="O perfil padrão não pode ser excluído">
+                            <span className="settings-icon-button settings-icon-button--static" title={msg.settings.defaultCannotBeDeleted}>
                               <IconLock />
                             </span>
                           ) : (
@@ -647,8 +690,8 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
                               type="button"
                               className="settings-icon-button settings-icon-button--danger"
                               disabled={linked > 0 || deletingAccountId === account.id}
-                              title={linked > 0 ? "Feche as sessões vinculadas para excluir" : "Excluir perfil"}
-                              aria-label={`Excluir ${account.name}`}
+                              title={linked > 0 ? msg.settings.closeLinkedToDelete : msg.settings.deleteProfile}
+                              aria-label={msg.settings.deleteProfileAria(account.name)}
                               onClick={() => void deleteClaudeProfile(account)}
                             >
                               <IconTrash />
@@ -665,18 +708,18 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
             {activeSection === "integrations" && (
               <section className="settings-section">
                 <div className="settings-section__header">
-                  <h3>Integrações</h3>
-                  <p>Credenciais externas e servidores conectados aos agentes.</p>
+                  <h3>{msg.settings.integrations}</h3>
+                  <p>{msg.settings.integrationsDescription}</p>
                 </div>
 
                 <div className="settings-card">
                   <div className="settings-card__header">
                     <div>
                       <strong>OpenAI</strong>
-                      <span>Chave usada pelos recursos de voz.</span>
+                      <span>{msg.settings.openAiHint}</span>
                     </div>
                     {hasStoredKey && !apiKeyEdited && (
-                      <span className="settings-status settings-status--ok">Configurada</span>
+                      <span className="settings-status settings-status--ok">{msg.settings.apiKeyConfigured}</span>
                     )}
                   </div>
                   <div className="settings-inline-form">
@@ -684,7 +727,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
                       type="password"
                       value={apiKey}
                       autoComplete="off"
-                      placeholder={hasStoredKey ? "Digite para substituir" : "sk-..."}
+                      placeholder={hasStoredKey ? msg.settings.apiKeyReplacePlaceholder : "sk-..."}
                       onChange={(event) => {
                         setApiKey(event.target.value);
                         setApiKeyEdited(true);
@@ -696,7 +739,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
                       disabled={!apiKeyEdited || savingApiKey}
                       onClick={() => void saveApiKey()}
                     >
-                      Salvar chave
+                      {msg.settings.saveApiKey}
                     </button>
                   </div>
                   {apiKeySaveError && (
@@ -707,15 +750,15 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
                 <div className="settings-card">
                   <div className="settings-card__header">
                     <div>
-                      <strong>MCP servers</strong>
-                      <span>A verificação roda somente quando solicitada.</span>
+                      <strong>{msg.settings.mcpTitle}</strong>
+                      <span>{msg.settings.mcpHint}</span>
                     </div>
                     <button
                       type="button"
                       className="settings-secondary-button"
                       onClick={checkMcpServers}
                     >
-                      Verificar
+                      {msg.settings.mcpCheck}
                     </button>
                   </div>
                   <ul className="settings-mcp-list">
@@ -727,15 +770,15 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
                           <li key={profile.id} className="settings-mcp-item">
                             <span className="settings-mcp-item__name">{profile.label}</span>
                             {!AGENTS_WITH_MCP_SUPPORT.has(profile.id) ? (
-                              <span className="settings-mcp-status--unsupported">Não suportado</span>
+                              <span className="settings-mcp-status--unsupported">{msg.settings.mcpUnsupported}</span>
                             ) : !state ? (
-                              <span className="settings-mcp-item__detail">Não verificado</span>
+                              <span className="settings-mcp-item__detail">{msg.settings.mcpUnchecked}</span>
                             ) : state.loading ? (
-                              <span className="settings-mcp-item__detail">Verificando…</span>
+                              <span className="settings-mcp-item__detail">{msg.settings.mcpChecking}</span>
                             ) : state.error ? (
                               <span className="settings-mcp-status--error">{state.error}</span>
                             ) : state.servers.length === 0 ? (
-                              <span className="settings-mcp-item__detail">Nenhum servidor</span>
+                              <span className="settings-mcp-item__detail">{msg.settings.mcpNone}</span>
                             ) : (
                               <span className="settings-mcp-item__detail">
                                 {state.servers.map((server) => (
@@ -760,9 +803,9 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
         </div>
 
         <footer className="settings-dialog__footer">
-          <span>Alterações salvas automaticamente</span>
+          <span>{msg.settings.autoSaved}</span>
           <button type="button" className="settings-secondary-button" onClick={onClose}>
-            Fechar
+            {msg.settings.close}
           </button>
         </footer>
       </div>

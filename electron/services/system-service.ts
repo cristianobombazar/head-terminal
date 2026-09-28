@@ -5,6 +5,7 @@ import { join, resolve } from "node:path";
 import { runCommand } from "./command-runner";
 import { parseWslDistros } from "./windows-shell";
 import { HT_UNIX_CMD_FN, UNIX_USER_BIN_PATH_EXPORT } from "../../src/core/unix-cli-probe";
+import { msg } from "../../src/i18n";
 
 const CLAUDE_PROFILE_ID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -27,7 +28,7 @@ function validatePath(value: string): string {
     value.length > MAX_PATH_LENGTH ||
     value.includes("\0")
   ) {
-    throw new Error("Caminho inválido");
+    throw new Error(msg.main.paths.invalid);
   }
   return value;
 }
@@ -218,16 +219,16 @@ export async function deleteClaudeProfileDir(path: string): Promise<void> {
     target !== join(root, profileId) ||
     !CLAUDE_PROFILE_ID.test(profileId)
   ) {
-    throw new Error("Caminho de perfil inválido");
+    throw new Error(msg.main.paths.invalidProfile);
   }
 
   try {
     const rootInfo = await lstat(root);
     if (rootInfo.isSymbolicLink() || !rootInfo.isDirectory()) {
-      throw new Error("Diretório de perfis inválido");
+      throw new Error(msg.main.paths.invalidProfilesRoot);
     }
     if ((await realpath(root)) !== root) {
-      throw new Error("Diretório de perfis inválido");
+      throw new Error(msg.main.paths.invalidProfilesRoot);
     }
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code;
@@ -240,7 +241,7 @@ export async function deleteClaudeProfileDir(path: string): Promise<void> {
   try {
     const targetInfo = await lstat(target);
     if (targetInfo.isSymbolicLink() || !targetInfo.isDirectory()) {
-      throw new Error("Caminho de perfil inválido");
+      throw new Error(msg.main.paths.invalidProfile);
     }
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code;

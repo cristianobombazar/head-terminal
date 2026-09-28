@@ -1,6 +1,7 @@
 import { isThemePreference, type ThemePreference } from "../config/themes";
 
 const SIDEBAR_COLLAPSED_KEY = "head-terminal.sidebar.collapsed";
+const SIDEBAR_WIDTH_KEY = "head-terminal.sidebar.width";
 const RUN_EVERYTHING_KEY = "head-terminal.run-everything";
 const PANE_HEADERS_KEY = "head-terminal.pane-headers.enabled";
 const OPENAI_API_KEY_KEY = "head-terminal.openai-api-key";
@@ -77,6 +78,30 @@ export function loadSidebarCollapsed(): boolean {
 
 export function saveSidebarCollapsed(collapsed: boolean): void {
   storageSet(SIDEBAR_COLLAPSED_KEY, collapsed ? "1" : "0");
+}
+
+/** Same as `--sidebar-width` in tokens.css. */
+export const SIDEBAR_WIDTH_DEFAULT = 256;
+const SIDEBAR_WIDTH_MIN = SIDEBAR_WIDTH_DEFAULT;
+const SIDEBAR_WIDTH_MAX = 520;
+
+/**
+ * Only ever wider than the default: the resource meter's rows are laid out
+ * for it and overflow below (collapsing is the way to go narrow). Wider than
+ * the max eats the terminals.
+ */
+export function clampSidebarWidth(width: number): number {
+  return Math.min(SIDEBAR_WIDTH_MAX, Math.max(SIDEBAR_WIDTH_MIN, Math.round(width)));
+}
+
+export function loadSidebarWidth(): number {
+  const raw = storageGet(SIDEBAR_WIDTH_KEY);
+  const parsed = raw ? Number.parseInt(raw, 10) : NaN;
+  return Number.isFinite(parsed) ? clampSidebarWidth(parsed) : SIDEBAR_WIDTH_DEFAULT;
+}
+
+export function saveSidebarWidth(width: number): void {
+  storageSet(SIDEBAR_WIDTH_KEY, String(clampSidebarWidth(width)));
 }
 
 // Cached: read on every TerminalPane render otherwise.

@@ -10,6 +10,7 @@ import {
 import { useSessionStore } from "./session-manager";
 import type { AgentSession, WorktreeRef } from "../types/session";
 import type { WorktreePlan } from "../../electron/types/api";
+import { msg } from "../i18n";
 
 /** Depois de fechar o terminal o processo ainda leva um instante para morrer, e
  * no Windows não se apaga uma pasta que é o cwd de um processo vivo. */
@@ -89,11 +90,11 @@ export async function createIsolatedWorktree(
     } catch (error) {
       logError("worktree.create_failed", error);
       const retry = await window.headTerminal.system.confirm({
-        title: "Não foi possível criar o worktree",
-        message: `O git recusou criar a árvore isolada de ${cwd}.`,
+        title: msg.core.worktree.createFailedTitle,
+        message: msg.core.worktree.createFailedMessage(cwd),
         detail: error instanceof Error ? error.message : String(error),
-        confirmLabel: "Tentar de novo",
-        cancelLabel: "Deixar como está",
+        confirmLabel: msg.core.worktree.retry,
+        cancelLabel: msg.core.worktree.leaveAsIs,
       });
       if (!retry) {
         return null;
@@ -174,13 +175,17 @@ export async function decideWorktreesOnClose(
       // apaga quando ainda bate, então o texto não promete mais do que isso.
       const onOwnBranch = status.branch === worktree.branch;
       const confirmed = await window.headTerminal.system.confirm({
-        title: "Remover o worktree?",
-        message: `${context.label} usava a árvore isolada ${worktree.branch}.`,
+        title: msg.core.worktree.removeTitle,
+        message: msg.core.worktree.removeMessage(context.label, worktree.branch),
         detail: onOwnBranch
-          ? `Nada ficou para trás: sem alteração pendente e sem commit que só exista aqui.\n\nRemover apaga a pasta ${worktree.path} e a branch ${worktree.branch}.`
-          : `Nada ficou para trás: sem alteração pendente e sem commit que só exista aqui.\n\nRemover apaga a pasta ${worktree.path}. A branch ${worktree.branch} fica, porque o worktree está em ${status.branch ?? "HEAD solto"} agora.`,
-        confirmLabel: "Remover worktree",
-        cancelLabel: "Manter pasta",
+          ? msg.core.worktree.removeDetail(worktree.path, worktree.branch)
+          : msg.core.worktree.removeDetailKeepBranch(
+              worktree.path,
+              worktree.branch,
+              status.branch ?? msg.core.worktree.detachedHead,
+            ),
+        confirmLabel: msg.core.worktree.removeConfirm,
+        cancelLabel: msg.core.worktree.keepFolder,
       });
       if (confirmed) {
         remove.push(worktree);
@@ -189,22 +194,20 @@ export async function decideWorktreesOnClose(
     }
 
     const pending = [
-      status.isDirty ? "alterações não commitadas" : null,
+      status.isDirty ? msg.core.worktree.uncommittedChanges : null,
       status.unpushedCommits > 0
-        ? `${status.unpushedCommits} commit(s) que não estão em nenhum outro lugar`
+        ? msg.core.worktree.unpushedCommits(status.unpushedCommits)
         : null,
     ]
       .filter(Boolean)
-      .join(" e ");
+      .join(msg.core.worktree.pendingJoiner);
 
     const keepAndClose = await window.headTerminal.system.confirm({
-      title: "Worktree com trabalho não publicado",
-      message: `${status.branch ?? worktree.branch} tem ${pending}.`,
-      detail:
-        `A pasta ${worktree.path} será mantida — nada é apagado.\n\n` +
-        `Cancele se preferir commitar ou publicar antes de fechar.`,
-      confirmLabel: "Fechar e manter a pasta",
-      cancelLabel: "Cancelar",
+      title: msg.core.worktree.unpublishedTitle,
+      message: msg.core.worktree.unpublishedMessage(status.branch ?? worktree.branch, pending),
+      detail: msg.core.worktree.unpublishedDetail(worktree.path),
+      confirmLabel: msg.core.worktree.closeAndKeepFolder,
+      cancelLabel: msg.core.worktree.cancel,
     });
     if (!keepAndClose) {
       return { proceed: false, remove: [] };
@@ -235,13 +238,14 @@ async function removeWorktrees(
       }
       logError("worktree.remove_failed", error, { path: worktree.path });
       const retry = await window.headTerminal.system.confirm({
-        title: "Não foi possível remover o worktree",
-        message: `A pasta ${worktree.path} continua no disco.`,
-        detail:
-          `${error instanceof Error ? error.message : String(error)}\n\n` +
-          `Se algum programa ainda estiver com a pasta aberta, feche e tente de novo — ou remova depois com: git worktree remove ${worktree.path}`,
-        confirmLabel: "Tentar de novo",
-        cancelLabel: "Deixar a pasta",
+        title: msg.core.worktree.removeFailedTitle,
+        message: msg.core.worktree.removeFailedMessage(worktree.path),
+        detail: msg.core.worktree.removeFailedDetail(
+          error instanceof Error ? error.message : String(error),
+          worktree.path,
+        ),
+        confirmLabel: msg.core.worktree.retry,
+        cancelLabel: msg.core.worktree.leaveFolder,
       });
       if (!retry) {
         break;
@@ -267,7 +271,7 @@ async function attemptRemoval(worktree: WorktreeRef): Promise<unknown> {
       lastError = error;
     }
   }
-  return lastError ?? new Error("Falha desconhecida ao remover o worktree");
+  return lastError ?? new Error(msg.core.worktree.unknownRemoveError);
 }
 
 /** Junta, sem repetir, as árvores que o app criou para uma sessão e para os
@@ -301,7 +305,7 @@ export async function closePaneWithWorktreeReview(
     worktree && collectPaneIds(session.layout).length > 1 ? [worktree] : [];
 
   const decision = await decideWorktreesOnClose(worktrees, {
-    label: "Este terminal",
+    label: msg.core.worktree.thisTerminal,
   });
   if (!decision.proceed) {
     return;
@@ -318,15 +322,15 @@ async function confirmSessionClose(session: AgentSession): Promise<boolean> {
   const { paneRuntime } = useSessionStore.getState();
   const working = getSessionActivity(session, paneRuntime) === "working";
   return confirmInApp({
-    title: `Fechar “${session.title}”?`,
+    title: msg.core.worktree.closeSessionTitle(session.title),
     message: working
-      ? "Um agent ainda está executando nesta sessão."
-      : "Os terminais desta sessão serão encerrados.",
+      ? msg.core.worktree.closeSessionWorking
+      : msg.core.worktree.closeSessionIdle,
     detail: working
-      ? "Fechar encerra o processo e o que ele estava fazendo."
+      ? msg.core.worktree.closeSessionWorkingDetail
       : undefined,
-    confirmLabel: "Fechar sessão",
-    cancelLabel: "Cancelar",
+    confirmLabel: msg.core.worktree.closeSessionConfirm,
+    cancelLabel: msg.core.worktree.cancel,
     danger: true,
   });
 }
@@ -349,7 +353,7 @@ export async function closeSessionWithWorktreeReview(
 
   const decision = await decideWorktreesOnClose(
     collectSessionWorktrees(session),
-    { label: `A sessão ${session.title}` },
+    { label: msg.core.worktree.theSession(session.title) },
   );
   if (!decision.proceed) {
     return;

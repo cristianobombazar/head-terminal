@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   AGENT_PROMPT_MARKER,
-  BROAD_FOLDER_WARNING,
+  broadFolderWarning,
   buildPaneConversationNote,
   describeAgentEvent,
   LiveBrainstormService,
@@ -297,7 +297,7 @@ describe("LiveBrainstormService.createSession", () => {
 
     const answer = await service.createSession({ sdp: "offer", cwd: home, agent: "claude" });
 
-    expect(answer.warning).toBe(BROAD_FOLDER_WARNING);
+    expect(answer.warning).toBe(broadFolderWarning());
     const body = JSON.parse(String((fetchImpl.mock.calls[0] as unknown as [string, RequestInit])[1].body));
     expect(body.session.input[0].content[0].text).toContain("pasta pessoal");
   });

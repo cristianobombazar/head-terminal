@@ -1,5 +1,7 @@
 import { useEffect, useRef } from "react";
 
+import { msg } from "../../i18n";
+
 interface SearchBarProps {
   query: string;
   onQueryChange: (query: string) => void;
@@ -29,7 +31,7 @@ export function SearchBar({
         className="terminal-search-bar__input"
         type="search"
         value={query}
-        placeholder="Buscar no terminal…"
+        placeholder={msg.terminal.search.placeholder}
         onChange={(event) => onQueryChange(event.target.value)}
         onKeyDown={(event) => {
           if (event.key === "Enter") {
@@ -49,7 +51,7 @@ export function SearchBar({
       <button
         type="button"
         className="terminal-search-bar__button"
-        title="Anterior (Shift+Enter)"
+        title={msg.terminal.search.previous}
         onClick={onPrevious}
       >
         ↑
@@ -57,7 +59,7 @@ export function SearchBar({
       <button
         type="button"
         className="terminal-search-bar__button"
-        title="Próximo (Enter)"
+        title={msg.terminal.search.next}
         onClick={onNext}
       >
         ↓
@@ -65,7 +67,7 @@ export function SearchBar({
       <button
         type="button"
         className="terminal-search-bar__button"
-        title="Fechar (Esc)"
+        title={msg.terminal.search.close}
         onClick={onClose}
       >
         ✕

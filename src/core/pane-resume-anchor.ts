@@ -7,6 +7,7 @@ import {
   isBackgroundAgentTitle,
 } from "./background-agent-sessions";
 import { useSessionStore } from "./session-manager";
+import { messages } from "../i18n/messages";
 
 // The CLI writes its transcript when the conversation gets its first message,
 // not when it starts: `claude` can sit at an empty prompt for minutes with no
@@ -60,8 +61,14 @@ export function hasTranscriptTitle(entry: {
 }): boolean {
   if (entry.fromTranscript === false) return false;
   if (entry.fromTranscript === true) return true;
-  return !/^Sessão de /u.test(entry.title);
+  return !UNTITLED_PREFIXES.some((prefix) => entry.title.startsWith(prefix));
 }
+
+/** "Sessão de <data>" / "Session from <date>": main names a session it has no
+ * text for yet in whichever language it runs. */
+const UNTITLED_PREFIXES = Object.values(messages).map((texts) =>
+  texts.main.agentSessions.untitled(""),
+);
 
 /** Taken *before* the PTY starts so a jsonl the CLI creates while booting is
  * not snapshotted as "already there" and then ignored forever — that is what

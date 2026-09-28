@@ -1,8 +1,9 @@
 import { createRequire } from "node:module";
-import { execFileSync } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 
+import type { RunningAgent } from "../types/api";
 import {
   killWindowsProcessTree,
   POWERSHELL_COMMAND,
@@ -24,6 +25,8 @@ const COALESCE_INTERVAL_MS = 12;
 const COALESCE_MAX_CHARS = 128 * 1024;
 /** Upper bound on the Windows tree kill so before-quit cannot hang. */
 const WINDOWS_KILL_TIMEOUT_MS = 5_000;
+/** How often POSIX panes are checked for an agent CLI started inside them. */
+const AGENT_POLL_MS = 1_500;
 
 export interface Disposable {
   dispose(): void;
@@ -80,6 +83,11 @@ export type PtyServiceEvent =
       channel: "pty:exit";
       ownerId: number;
       payload: { id: string; exitCode: number; signal?: number };
+    }
+  | {
+      channel: "pty:agent";
+      ownerId: number;
+      payload: { id: string; agent: RunningAgent | null };
     };
 
 export interface PtyServiceOptions {
@@ -111,6 +119,13 @@ export interface PtyServiceOptions {
   killWindowsTree?: (pid: number) => Promise<void>;
   /** Directory check for the Windows cwd fallback. Defaults to the filesystem. */
   pathExists?: (path: string) => boolean;
+  /**
+   * `pid ppid args` for every process, read to spot an agent CLI started
+   * inside a POSIX pane. Defaults to `ps`; injected so tests never run it.
+   */
+  readProcessTable?: () => Promise<string>;
+  /** How often that table is read while panes exist; 0 turns it off. */
+  agentPollMs?: number;
 }
 
 interface PtyEntry {
@@ -120,6 +135,8 @@ interface PtyEntry {
   listeners: Disposable[];
   pendingData: string;
   flushTimer: ReturnType<typeof setTimeout> | null;
+  /** Last agent reported for this pane, so only changes are emitted. */
+  runningAgent: RunningAgent | null;
 }
 
 interface NodePtyModule {
@@ -293,6 +310,58 @@ export function descendantsFromProcessTable(table: string, root: number): number
   return walk(root);
 }
 
+function commandName(token: string): string {
+  return token.slice(token.lastIndexOf("/") + 1);
+}
+
+/**
+ * Is this `args` column Claude Code? Only argv can tell: the native binary's
+ * `comm` is its version (`2.1.282`). An npm install runs through node, as
+ * `node …/bin/claude` (its shebang) or `node …/claude-code/cli.js`.
+ */
+export function isClaudeCommand(args: string): boolean {
+  const [first = "", second = ""] = args.trim().split(/\s+/u);
+  if (commandName(first) === "claude") return true;
+  return (
+    commandName(first) === "node" &&
+    (commandName(second) === "claude" ||
+      /@anthropic-ai\/claude-code\/cli\.[cm]?js$/u.test(second))
+  );
+}
+
+/**
+ * The agent CLI running somewhere under a pane's shell, from a `pid ppid
+ * args` table (`ps -eo pid=,ppid=,args=`). The shell that launches an agent
+ * profile carries `claude` inside its `-c` script, never as its own argv[0],
+ * so only the CLI itself counts.
+ */
+export function runningAgentFromProcessTable(
+  table: string,
+  root: number,
+): RunningAgent | null {
+  const argsByPid = new Map<number, string>();
+  for (const line of table.split(/\r?\n/u)) {
+    const match = /^\s*(\d+)\s+\d+\s+(.*)$/u.exec(line);
+    if (match) argsByPid.set(Number(match[1]), match[2]);
+  }
+  return descendantsFromProcessTable(table, root).some((pid) =>
+    isClaudeCommand(argsByPid.get(pid) ?? ""),
+  )
+    ? "claude"
+    : null;
+}
+
+function readPosixProcessTable(): Promise<string> {
+  return new Promise((resolve, reject) => {
+    execFile(
+      "ps",
+      ["-eo", "pid=,ppid=,args="],
+      { encoding: "utf8", timeout: 2_000, maxBuffer: 8 * 1024 * 1024 },
+      (error, stdout) => (error ? reject(error) : resolve(stdout)),
+    );
+  });
+}
+
 /**
  * macOS has no /proc; `ps` is the portable way to see who descends from the
  * pane's shell. Synchronous on purpose: this runs while a pane is closing,
@@ -335,6 +404,10 @@ export class PtyService {
   private readonly wslShell: string;
   private readonly killWindowsTree: (pid: number) => Promise<void>;
   private readonly pathExists: (path: string) => boolean;
+  private readonly readProcessTable: () => Promise<string>;
+  private readonly agentPollMs: number;
+  private agentPollTimer: ReturnType<typeof setInterval> | null = null;
+  private agentPollBusy = false;
 
   constructor(options: PtyServiceOptions = {}) {
     this.emit = options.emit ?? (() => undefined);
@@ -350,6 +423,8 @@ export class PtyService {
     this.wslShell = options.wslShell ?? resolveWsl();
     this.killWindowsTree = options.killWindowsTree ?? killWindowsProcessTree;
     this.pathExists = options.pathExists ?? existsSync;
+    this.readProcessTable = options.readProcessTable ?? readPosixProcessTable;
+    this.agentPollMs = options.agentPollMs ?? AGENT_POLL_MS;
   }
 
   spawn(ownerId: number, request: PtySpawnRequest): PtySpawnResult {
@@ -417,8 +492,10 @@ export class PtyService {
       listeners: [],
       pendingData: "",
       flushTimer: null,
+      runningAgent: null,
     };
     this.entries.set(key, entry);
+    this.ensureAgentPoll();
 
     try {
       entry.listeners.push(
@@ -546,11 +623,57 @@ export class PtyService {
     });
   }
 
+  /**
+   * A shell pane is launched as a shell, but the user may start `claude` in
+   * it: the renderer shows the agent while it runs. The process table is the
+   * one signal that also goes away when the CLI crashes or is killed. Not on
+   * Windows, where panes have no POSIX process tree to read.
+   */
+  private ensureAgentPoll(): void {
+    if (this.agentPollTimer !== null || this.platform === "win32" || this.agentPollMs <= 0) {
+      return;
+    }
+    this.agentPollTimer = setInterval(() => void this.pollRunningAgents(), this.agentPollMs);
+    this.agentPollTimer.unref?.();
+  }
+
+  private stopAgentPoll(): void {
+    if (this.agentPollTimer === null) return;
+    clearInterval(this.agentPollTimer);
+    this.agentPollTimer = null;
+  }
+
+  private async pollRunningAgents(): Promise<void> {
+    if (this.agentPollBusy || this.entries.size === 0) return;
+    this.agentPollBusy = true;
+    try {
+      const table = await this.readProcessTable();
+      for (const entry of this.entries.values()) {
+        const agent =
+          entry.process.pid > 0 ? runningAgentFromProcessTable(table, entry.process.pid) : null;
+        if (agent === entry.runningAgent) continue;
+        entry.runningAgent = agent;
+        this.emit({
+          channel: "pty:agent",
+          ownerId: entry.ownerId,
+          payload: { id: entry.id, agent },
+        });
+      }
+    } catch {
+      // A failed or slow `ps` only skips this round.
+    } finally {
+      this.agentPollBusy = false;
+    }
+  }
+
   private detachEntry(key: string, entry: PtyEntry, kill: boolean): Promise<void> {
     // Delete first: node-pty can synchronously deliver onExit from kill().
     if (this.entries.get(key) !== entry) return Promise.resolve();
     this.flushPendingData(entry);
     this.entries.delete(key);
+    if (this.entries.size === 0) {
+      this.stopAgentPoll();
+    }
 
     for (const listener of entry.listeners.splice(0)) {
       try {

@@ -3,7 +3,11 @@ import type { Terminal } from "@xterm/xterm";
 
 import type { FitAddon } from "@xterm/addon-fit";
 
-import { createRafPtyWriter, fitTerminal } from "./terminal-factory";
+import {
+  createRafPtyWriter,
+  fitTerminal,
+  modifiedEnterSequence,
+} from "./terminal-factory";
 
 function encode(text: string): Uint8Array {
   return new TextEncoder().encode(text);
@@ -174,5 +178,45 @@ describe("fitTerminal", () => {
 
     expect(size).toEqual({ cols: 152, rows: 47 });
     expect(resizes).toEqual([]);
+  });
+});
+
+describe("modifiedEnterSequence", () => {
+  function enter(init: Partial<KeyboardEvent> = {}): KeyboardEvent {
+    return {
+      type: "keydown",
+      key: "Enter",
+      ctrlKey: false,
+      shiftKey: false,
+      altKey: false,
+      metaKey: false,
+      isComposing: false,
+      ...init,
+    } as KeyboardEvent;
+  }
+
+  it("sends Shift+Enter as Meta+Enter on macOS, a new line for Claude Code", () => {
+    expect(modifiedEnterSequence(enter({ shiftKey: true }), true)).toBe("\x1b\r");
+  });
+
+  it("sends Ctrl+Enter as its CSI-u encoding on macOS, Claude Code's send-now", () => {
+    expect(modifiedEnterSequence(enter({ ctrlKey: true }), true)).toBe("\x1b[13;5u");
+  });
+
+  it("leaves both to xterm off macOS", () => {
+    expect(modifiedEnterSequence(enter({ shiftKey: true }), false)).toBeNull();
+    expect(modifiedEnterSequence(enter({ ctrlKey: true }), false)).toBeNull();
+  });
+
+  it("leaves plain Enter and other modifier combinations alone", () => {
+    expect(modifiedEnterSequence(enter(), true)).toBeNull();
+    expect(modifiedEnterSequence(enter({ shiftKey: true, ctrlKey: true }), true)).toBeNull();
+    expect(modifiedEnterSequence(enter({ shiftKey: true, metaKey: true }), true)).toBeNull();
+    expect(modifiedEnterSequence(enter({ ctrlKey: true, altKey: true }), true)).toBeNull();
+  });
+
+  it("leaves an IME composition and non-keydown events to xterm", () => {
+    expect(modifiedEnterSequence(enter({ shiftKey: true, isComposing: true }), true)).toBeNull();
+    expect(modifiedEnterSequence(enter({ ctrlKey: true, type: "keyup" }), true)).toBeNull();
   });
 });

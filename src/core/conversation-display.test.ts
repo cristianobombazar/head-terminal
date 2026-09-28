@@ -1,17 +1,17 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  NEW_CONVERSATION_LABEL,
+  newConversationLabel,
   resolvePaneConversationView,
 } from "./conversation-display";
 
 describe("resolvePaneConversationView", () => {
   it("stays on nova conversa until the pane has a CLI session id", () => {
     expect(resolvePaneConversationView({}).displayName).toBe(
-      NEW_CONVERSATION_LABEL,
+      newConversationLabel(),
     );
     expect(resolvePaneConversationView({ title: "oi" }).displayName).toBe(
-      NEW_CONVERSATION_LABEL,
+      newConversationLabel(),
     );
   });
 

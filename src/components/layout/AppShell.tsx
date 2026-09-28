@@ -15,6 +15,8 @@ import {
 import { useSessionStore } from "../../core/session-manager";
 import { matchesShortcut } from "../../core/shortcuts";
 import { getTerminal } from "../../core/terminal-registry";
+import { msg } from "../../i18n";
+import { useLocale } from "../../i18n/react";
 import {
   useActivityNotifications,
   useKeyboardShortcuts,
@@ -38,6 +40,8 @@ export function AppShell({
   activeSessionId,
   onCreateSession,
 }: AppShellProps) {
+  // The window title is set from an effect, not rendered: redo it on a switch.
+  const locale = useLocale();
   const spawnedSessionIds = useSessionStore((state) => state.spawnedSessionIds);
   const workingCount = useSessionStore((state) =>
     countWorkingSessions(state.sessions, state.paneRuntime),
@@ -87,9 +91,9 @@ export function AppShell({
   useEffect(() => {
     const base = import.meta.env.DEV ? "Head Terminal (Dev)" : "Head Terminal";
     const title =
-      workingCount > 0 ? `● ${workingCount} executando — ${base}` : base;
+      workingCount > 0 ? msg.app.windowTitleWorking(workingCount, base) : base;
     void window.headTerminal.app.setTitle(title);
-  }, [workingCount]);
+  }, [workingCount, locale]);
 
   useEffect(() => {
     const unlisten = window.headTerminal.app.onCloseRequested(() => {
@@ -98,11 +102,11 @@ export function AppShell({
         const working = countWorkingSessions(state.sessions, state.paneRuntime);
         if (working > 0) {
           const ok = await window.headTerminal.system.confirm({
-            title: "Fechar Head Terminal",
-            message: `${working} agent(s) ainda executando.`,
-            detail: "Fechar mesmo assim? Os processos em execução serão encerrados.",
-            confirmLabel: "Fechar",
-            cancelLabel: "Cancelar",
+            title: msg.app.closeWhileWorking.title,
+            message: msg.app.closeWhileWorking.message(working),
+            detail: msg.app.closeWhileWorking.detail,
+            confirmLabel: msg.app.closeWhileWorking.confirm,
+            cancelLabel: msg.app.closeWhileWorking.cancel,
           });
           if (!ok) {
             window.headTerminal.app.respondToClose(false);
@@ -116,11 +120,11 @@ export function AppShell({
             message: error instanceof Error ? error.message : String(error),
           });
           const closeWithoutSaving = await window.headTerminal.system.confirm({
-            title: "Falha ao salvar workspace",
-            message: "Não foi possível persistir o estado mais recente.",
-            detail: "Deseja fechar mesmo assim?",
-            confirmLabel: "Fechar sem salvar",
-            cancelLabel: "Cancelar",
+            title: msg.app.closeSaveFailed.title,
+            message: msg.app.closeSaveFailed.message,
+            detail: msg.app.closeSaveFailed.detail,
+            confirmLabel: msg.app.closeSaveFailed.confirm,
+            cancelLabel: msg.app.closeSaveFailed.cancel,
           });
           if (!closeWithoutSaving) {
             window.headTerminal.app.respondToClose(false);

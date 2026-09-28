@@ -1,10 +1,11 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron";
 
-import { IPC_CHANNELS } from "./ipc/channels";
+import { IPC_CHANNELS, LOCALE_ARGUMENT } from "./ipc/channels";
 import type {
   GitChangedEvent,
   HeadTerminalApi,
   LiveDelegationProgress,
+  PtyAgentEvent,
   PtyDataEvent,
   PtyExitEvent,
   Unsubscribe,
@@ -16,14 +17,21 @@ function subscribe<T>(channel: string, callback: (event: T) => void): Unsubscrib
   return () => ipcRenderer.removeListener(channel, listener);
 }
 
+const locale =
+  process.argv
+    .find((argument) => argument.startsWith(LOCALE_ARGUMENT))
+    ?.slice(LOCALE_ARGUMENT.length) ?? "";
+
 const api: HeadTerminalApi = {
   app: {
+    locale,
     getStartupContext: () => ipcRenderer.invoke(IPC_CHANNELS.app.getStartupContext),
     setTitle: (title) => ipcRenderer.invoke(IPC_CHANNELS.app.setTitle, title),
     requestClose: () => ipcRenderer.invoke(IPC_CHANNELS.app.requestClose),
     respondToClose: (allow) => ipcRenderer.send(IPC_CHANNELS.app.respondToClose, allow),
     onCloseRequested: (callback) =>
       subscribe(IPC_CHANNELS.app.closeRequested, callback),
+    setLanguage: (preference) => ipcRenderer.invoke(IPC_CHANNELS.app.setLanguage, preference),
   },
   terminal: {
     spawn: (input) => ipcRenderer.invoke(IPC_CHANNELS.terminal.spawn, input),
@@ -34,6 +42,8 @@ const api: HeadTerminalApi = {
       subscribe<PtyDataEvent>(IPC_CHANNELS.terminal.data, callback),
     onExit: (callback) =>
       subscribe<PtyExitEvent>(IPC_CHANNELS.terminal.exit, callback),
+    onAgent: (callback) =>
+      subscribe<PtyAgentEvent>(IPC_CHANNELS.terminal.agent, callback),
   },
   git: {
     getContext: (cwd) => ipcRenderer.invoke(IPC_CHANNELS.git.getContext, cwd),

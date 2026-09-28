@@ -1,6 +1,7 @@
 import { COMMAND_PALETTE_SHORTCUT } from "../../config/toolbar";
 import { countWorkingSessions } from "../../core/activity-utils";
 import { useSessionStore } from "../../core/session-manager";
+import { msg } from "../../i18n";
 import { IconCommand, IconSettings } from "../ui/Icons";
 import { StatusDot } from "../ui/StatusDot";
 import { Tooltip } from "../ui/Tooltip";
@@ -30,35 +31,33 @@ export function AgentToolbar({
         {workingCount > 0 && (
           <span className="agent-toolbar__global-status">
             <StatusDot activity="working" />
-            <span>
-              {workingCount} executando
-            </span>
+            <span>{msg.app.toolbar.working(workingCount)}</span>
           </span>
         )}
       </div>
 
       <div className="agent-toolbar__actions">
-        <Tooltip content={`Paleta de comandos (${COMMAND_PALETTE_SHORTCUT})`} below>
+        <Tooltip content={msg.app.toolbar.commandPaletteHint(COMMAND_PALETTE_SHORTCUT)} below>
           <button
             type="button"
             className="agent-toolbar__button agent-toolbar__button--ghost"
-            aria-label="Paleta de comandos"
+            aria-label={msg.app.toolbar.commandPalette}
             onClick={onOpenCommandPalette}
           >
             <IconCommand />
-            <span className="agent-toolbar__label">Comandos</span>
+            <span className="agent-toolbar__label">{msg.app.toolbar.commands}</span>
           </button>
         </Tooltip>
 
-        <Tooltip content="Configurações" below>
+        <Tooltip content={msg.app.toolbar.settings} below>
           <button
             type="button"
             className="agent-toolbar__button agent-toolbar__button--ghost"
-            aria-label="Configurações"
+            aria-label={msg.app.toolbar.settings}
             onClick={onOpenSettings}
           >
             <IconSettings />
-            <span className="agent-toolbar__label">Configurações</span>
+            <span className="agent-toolbar__label">{msg.app.toolbar.settings}</span>
           </button>
         </Tooltip>
       </div>

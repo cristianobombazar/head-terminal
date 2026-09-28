@@ -1,6 +1,7 @@
 import { formatActivityDuration } from "./activity-duration";
 import type { PaneRuntime } from "./session-manager";
 import type { PaneActivity } from "../types/activity";
+import { msg } from "../i18n";
 
 /** A terminal taken off its session's canvas into the session's dock. */
 export interface MinimizedPane {
@@ -61,35 +62,35 @@ export function describeMinimizedPane(
   const activity = runtime?.activity ?? "starting";
   const stoppedHere = minimized.finishedAt !== undefined;
   const stoppedFor = minimized.finishedAt !== undefined
-    ? `há ${formatActivityDuration(minimized.finishedAt, now)}`
+    ? msg.core.minimized.ago(formatActivityDuration(minimized.finishedAt, now))
     : undefined;
 
   switch (activity) {
     case "working":
       return {
         tone: "working",
-        label: "Executando",
+        label: msg.core.minimized.working,
         time: runtime ? formatActivityDuration(runtime.activitySince, now) : undefined,
         attention: false,
       };
     case "starting":
-      return { tone: "starting", label: "Iniciando", attention: false };
+      return { tone: "starting", label: msg.core.minimized.starting, attention: false };
     case "waiting_input":
       if (runtime?.awaitingApproval) {
-        return { tone: "approval", label: "Pede aprovação", time: stoppedFor, attention: true };
+        return { tone: "approval", label: msg.core.minimized.approval, time: stoppedFor, attention: true };
       }
       return stoppedHere
-        ? { tone: "done", label: "Terminou", time: stoppedFor, attention: true }
-        : { tone: "waiting", label: "Aguardando", attention: false };
+        ? { tone: "done", label: msg.core.minimized.done, time: stoppedFor, attention: true }
+        : { tone: "waiting", label: msg.core.minimized.waiting, attention: false };
     case "idle":
       return stoppedHere
-        ? { tone: "done", label: "Terminou", time: stoppedFor, attention: true }
-        : { tone: "idle", label: "Pronto", attention: false };
+        ? { tone: "done", label: msg.core.minimized.done, time: stoppedFor, attention: true }
+        : { tone: "idle", label: msg.core.minimized.idle, attention: false };
     case "error":
-      return { tone: "error", label: "Erro", time: stoppedFor, attention: true };
+      return { tone: "error", label: msg.core.minimized.error, time: stoppedFor, attention: true };
     case "agent_fallback":
-      return { tone: "fallback", label: "Agent caiu", time: stoppedFor, attention: true };
+      return { tone: "fallback", label: msg.core.minimized.fallback, time: stoppedFor, attention: true };
     case "exited":
-      return { tone: "exited", label: "Encerrado", time: stoppedFor, attention: stoppedHere };
+      return { tone: "exited", label: msg.core.minimized.exited, time: stoppedFor, attention: stoppedHere };
   }
 }

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 
 import { readBrainstormAudioLevel, type BrainstormStatus } from "../../core/live-brainstorm";
+import { msg } from "../../i18n";
 
 /**
  * The brainstorm's presence on screen: a small holographic sphere that
@@ -93,7 +94,7 @@ export function BrainstormOrb({
       type="button"
       className={classes}
       title={title}
-      aria-label={title ?? "Brainstorm por voz"}
+      aria-label={title ?? msg.brainstorm.title}
       onClick={onClick}
       disabled={!onClick}
       onAnimationEnd={(event) => {
@@ -107,7 +108,7 @@ export function BrainstormOrb({
       <span className="brainstorm-orb__core" aria-hidden />
       {mood === "paused" && <span className="brainstorm-orb__pause" aria-hidden />}
       {unread > 0 && !mini && (
-        <span className="brainstorm-orb__badge" aria-label={`${unread} resultados novos`}>
+        <span className="brainstorm-orb__badge" aria-label={msg.brainstorm.orb.unread(unread)}>
           {unread > 9 ? "9+" : unread}
         </span>
       )}

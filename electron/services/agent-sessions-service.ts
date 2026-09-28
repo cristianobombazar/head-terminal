@@ -6,6 +6,7 @@ import { join } from "node:path";
 
 import type { ResumableSessionEntry } from "../types/api";
 import { TITLE_MAX_LENGTH, summarizeTitle } from "./session-title";
+import { locale, msg } from "../../src/i18n";
 
 const MAX_ENTRIES = 40;
 const CLAUDE_TITLE_SCAN_LINES = 50;
@@ -113,7 +114,7 @@ export function cleanTitleText(raw: string): string {
 }
 
 function formatFallbackTitle(ms: number): string {
-  return `Sessão de ${new Date(ms).toLocaleString("pt-BR")}`;
+  return msg.main.agentSessions.untitled(new Date(ms).toLocaleString(locale));
 }
 
 /** A listed session before the list is handed to the renderer: carries the

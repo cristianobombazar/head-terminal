@@ -1,3 +1,5 @@
+import { msg } from "../i18n";
+
 export type PaneActivity =
   | "starting"
   | "idle"
@@ -24,12 +26,27 @@ export const NEEDS_ATTENTION: ReadonlySet<PaneActivity> = new Set([
   "agent_fallback",
 ]);
 
+// Getters: read when shown, so a language switch shows up without a reload.
 export const ACTIVITY_LABEL: Record<PaneActivity, string> = {
-  starting: "Iniciando",
-  idle: "Pronto",
-  working: "Executando",
-  waiting_input: "Aguardando",
-  agent_fallback: "Shell",
-  error: "Erro",
-  exited: "Encerrado",
+  get starting() {
+    return msg.core.activity.starting;
+  },
+  get idle() {
+    return msg.core.activity.idle;
+  },
+  get working() {
+    return msg.core.activity.working;
+  },
+  get waiting_input() {
+    return msg.core.activity.waitingInput;
+  },
+  get agent_fallback() {
+    return msg.core.activity.agentFallback;
+  },
+  get error() {
+    return msg.core.activity.error;
+  },
+  get exited() {
+    return msg.core.activity.exited;
+  },
 };

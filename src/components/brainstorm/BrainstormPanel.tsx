@@ -19,24 +19,15 @@ import {
   toggleBrainstorm,
   toggleBrainstormMute,
   useBrainstormStore,
-  type BrainstormStatus,
   type BrainstormTask,
 } from "../../core/live-brainstorm";
 import { basenamePath } from "../../core/path-utils";
 import { useSessionStore } from "../../core/session-manager";
 import { collectPaneIds } from "../../core/session-layout";
+import { msg } from "../../i18n";
+import { useLocale } from "../../i18n/react";
 import { IconCheck, IconClose, IconMic, IconMinimize } from "../ui/Icons";
 import { BrainstormOrb, orbMood } from "./BrainstormOrb";
-
-const STATUS_LABEL: Record<BrainstormStatus, string> = {
-  idle: "",
-  connecting: "Conectando…",
-  live: "Ouvindo",
-  paused: "Voz pausada",
-  closing: "Encerrando…",
-  ended: "Encerrada",
-  error: "Erro",
-};
 
 const REQUEST_PREVIEW_CHARS = 160;
 const STEPS_PREVIEW = 3;
@@ -53,10 +44,6 @@ function clock(totalSeconds: number): string {
   return minutes > 0 ? `${minutes}m${String(rest).padStart(2, "0")}s` : `${rest}s`;
 }
 
-function usd(value: number): string {
-  return `US$ ${value.toFixed(2).replace(".", ",")}`;
-}
-
 function isImageFile(name: string): boolean {
   return /\.(?:png|jpe?g|gif|webp|bmp)$/iu.test(name);
 }
@@ -66,12 +53,12 @@ function TaskItem({ task, now }: { task: BrainstormTask; now: number }) {
   const [allSteps, setAllSteps] = useState(false);
   const status =
     task.status === "running"
-      ? `Analisando… ${seconds(task.startedAt, now)}`
+      ? msg.brainstorm.task.running(seconds(task.startedAt, now))
       : task.status === "done"
-        ? `Concluída em ${seconds(task.startedAt, task.finishedAt ?? now)}`
+        ? msg.brainstorm.task.done(seconds(task.startedAt, task.finishedAt ?? now))
         : task.status === "cancelled"
-          ? "Cancelada"
-          : "Falhou";
+          ? msg.brainstorm.task.cancelled
+          : msg.brainstorm.task.failed;
   const request =
     task.request.length > REQUEST_PREVIEW_CHARS
       ? `${task.request.slice(0, REQUEST_PREVIEW_CHARS - 1)}…`
@@ -88,19 +75,19 @@ function TaskItem({ task, now }: { task: BrainstormTask; now: number }) {
         <span className="brainstorm-task__meta">
           {task.attachments.length > 0 && (
             <span title={task.attachments.join("\n")}>
-              {task.attachments.length} {task.attachments.length === 1 ? "imagem" : "imagens"}
+              {msg.brainstorm.task.images(task.attachments.length)}
             </span>
           )}
-          {task.model && <span title="Modelo do terminal">{task.model}</span>}
-          {typeof task.costUsd === "number" && <span>{usd(task.costUsd)}</span>}
+          {task.model && <span title={msg.brainstorm.task.model}>{task.model}</span>}
+          {typeof task.costUsd === "number" && <span>{msg.brainstorm.usd(task.costUsd)}</span>}
           {task.status === "running" && (
             <button
               type="button"
               className="brainstorm-task__cancel"
               onClick={() => cancelBrainstormTask(task.id)}
-              title="Interromper esta análise"
+              title={msg.brainstorm.task.cancelHint}
             >
-              Cancelar
+              {msg.brainstorm.task.cancel}
             </button>
           )}
         </span>
@@ -115,7 +102,7 @@ function TaskItem({ task, now }: { task: BrainstormTask; now: number }) {
                 className="brainstorm-task__toggle"
                 onClick={() => setAllSteps(true)}
               >
-                … {hidden} {hidden === 1 ? "passo anterior" : "passos anteriores"}
+                {msg.brainstorm.task.earlierSteps(hidden)}
               </button>
             </li>
           )}
@@ -134,14 +121,14 @@ function TaskItem({ task, now }: { task: BrainstormTask; now: number }) {
             className="brainstorm-task__toggle"
             onClick={() => setOpen((value) => !value)}
           >
-            {open ? "Ocultar detalhes" : "Ver detalhes"}
+            {open ? msg.brainstorm.task.hideDetails : msg.brainstorm.task.showDetails}
           </button>
           {open && (
             <div className="brainstorm-task__body">
               {task.details && <pre className="brainstorm-task__details">{task.details}</pre>}
               {task.transcriptSent && (
                 <details className="brainstorm-task__sent">
-                  <summary>O que o agente recebeu</summary>
+                  <summary>{msg.brainstorm.task.sentToAgent}</summary>
                   <pre className="brainstorm-task__details">{task.transcriptSent}</pre>
                 </details>
               )}
@@ -154,9 +141,10 @@ function TaskItem({ task, now }: { task: BrainstormTask; now: number }) {
 }
 
 const TurnRow = memo(function TurnRow({ turn }: { turn: BrainstormTurn }) {
+  useLocale();
   return (
     <p className={`brainstorm-panel__turn brainstorm-panel__turn--${turn.role}`}>
-      <span>{turn.role === "user" ? "Você" : "Voz"}</span>
+      <span>{turn.role === "user" ? msg.brainstorm.turn.user : msg.brainstorm.turn.assistant}</span>
       {turn.text}
     </p>
   );
@@ -250,15 +238,15 @@ export function BrainstormPanel() {
   const running = tasks.some((task) => task.status === "running");
   const folder = cwd ? basenamePath(cwd, cwd) : "";
   const orbTitle = [
-    "Brainstorm por voz",
-    STATUS_LABEL[status],
+    msg.brainstorm.title,
+    msg.brainstorm.status[status],
     sessionTitle ?? folder,
     status === "paused"
-      ? `${BRAINSTORM_SHORTCUT} retoma`
+      ? msg.brainstorm.orb.resumeHint(BRAINSTORM_SHORTCUT)
       : status === "live"
-        ? `${BRAINSTORM_SHORTCUT} pausa · ${BRAINSTORM_END_SHORTCUT} encerra`
+        ? msg.brainstorm.orb.liveHint(BRAINSTORM_SHORTCUT, BRAINSTORM_END_SHORTCUT)
         : "",
-    "clique para abrir",
+    msg.brainstorm.orb.open,
   ]
     .filter(Boolean)
     .join(" · ");
@@ -357,18 +345,27 @@ function BrainstormSheet({ phase, mood, onOpened, onMinimize, onClosed }: Brains
   const cost = (usageSeconds / 60) * LIVE_RATE_USD_PER_MINUTE;
 
   const copyAll = () => {
+    const markdown = msg.brainstorm.copied;
     const parts = [
-      `# Brainstorm por voz — ${folder}`,
+      markdown.heading(folder),
       "",
-      "## Conversa",
+      markdown.conversation,
       "",
-      formatTranscript(turns, { maxChars: Number.POSITIVE_INFINITY }),
+      formatTranscript(turns, {
+        maxChars: Number.POSITIVE_INFINITY,
+        speakers: { user: markdown.user, assistant: markdown.assistant },
+      }),
     ];
     const answered = tasks.filter((task) => task.details || task.error);
     if (answered.length > 0) {
-      parts.push("", "## Análises");
+      parts.push("", markdown.analyses);
       for (const task of answered) {
-        parts.push("", `### ${task.request || "Análise"}`, "", task.details ?? `Falhou: ${task.error}`);
+        parts.push(
+          "",
+          `### ${task.request || markdown.untitledAnalysis}`,
+          "",
+          task.details ?? markdown.failed(task.error ?? ""),
+        );
       }
     }
     void window.headTerminal.clipboard.writeText(parts.join("\n")).then(() => {
@@ -386,7 +383,7 @@ function BrainstormSheet({ phase, mood, onOpened, onMinimize, onClosed }: Brains
       ]
         .filter(Boolean)
         .join(" ")}
-      aria-label="Brainstorm por voz"
+      aria-label={msg.brainstorm.title}
       tabIndex={-1}
       onAnimationEnd={(event) => {
         if (event.target !== event.currentTarget) return;
@@ -409,16 +406,16 @@ function BrainstormSheet({ phase, mood, onOpened, onMinimize, onClosed }: Brains
       <header className="brainstorm-panel__header">
         <BrainstormOrb mood={mood} working={running} mini />
         <div className="brainstorm-panel__title">
-          <strong>Brainstorm por voz</strong>
+          <strong>{msg.brainstorm.title}</strong>
           <span className="brainstorm-panel__meta" title={cwd ?? undefined}>
             {[
-              STATUS_LABEL[status],
+              msg.brainstorm.status[status],
               folder,
-              brainstormAgentLabel(agent),
+              agent ? brainstormAgentLabel(agent) : msg.brainstorm.noCodingAgent,
               paneConversation && paneConversation.messages > 0
-                ? `com a conversa do terminal (${paneConversation.messages} ${paneConversation.messages === 1 ? "mensagem" : "mensagens"})`
+                ? msg.brainstorm.panel.withPaneConversation(paneConversation.messages)
                 : "",
-              usageSeconds > 0 ? `${clock(usageSeconds)} · ${usd(cost)}` : "",
+              usageSeconds > 0 ? `${clock(usageSeconds)} · ${msg.brainstorm.usd(cost)}` : "",
             ]
               .filter(Boolean)
               .join(" · ")}
@@ -430,8 +427,8 @@ function BrainstormSheet({ phase, mood, onOpened, onMinimize, onClosed }: Brains
               type="button"
               className={`brainstorm-panel__button ${muted ? "brainstorm-panel__button--muted" : ""}`}
               onClick={toggleBrainstormMute}
-              title={muted ? "Reativar microfone" : "Silenciar microfone"}
-              aria-label={muted ? "Reativar microfone" : "Silenciar microfone"}
+              title={muted ? msg.brainstorm.panel.unmute : msg.brainstorm.panel.mute}
+              aria-label={muted ? msg.brainstorm.panel.unmute : msg.brainstorm.panel.mute}
               aria-pressed={muted}
             >
               <IconMic size={13} />
@@ -442,9 +439,9 @@ function BrainstormSheet({ phase, mood, onOpened, onMinimize, onClosed }: Brains
               type="button"
               className="brainstorm-panel__button"
               onClick={() => void attachBrainstormClipboardImage()}
-              title={`Anexar a imagem da área de transferência (${formatShortcut("Ctrl+V")} no painel)`}
+              title={msg.brainstorm.panel.imageHint(formatShortcut("Ctrl+V"))}
             >
-              Imagem
+              {msg.brainstorm.panel.image}
             </button>
           )}
           {status === "paused" && (
@@ -452,9 +449,9 @@ function BrainstormSheet({ phase, mood, onOpened, onMinimize, onClosed }: Brains
               type="button"
               className="brainstorm-panel__button brainstorm-panel__button--accent"
               onClick={resumeBrainstormVoice}
-              title={`Reabrir a voz agora com o contexto da conversa (${BRAINSTORM_SHORTCUT})`}
+              title={msg.brainstorm.panel.resumeHint(BRAINSTORM_SHORTCUT)}
             >
-              Retomar voz
+              {msg.brainstorm.panel.resume}
             </button>
           )}
           {status === "live" && (
@@ -462,9 +459,9 @@ function BrainstormSheet({ phase, mood, onOpened, onMinimize, onClosed }: Brains
               type="button"
               className="brainstorm-panel__button"
               onClick={pauseBrainstormVoice}
-              title={`Pausar a voz sem encerrar a conversa (${BRAINSTORM_SHORTCUT})`}
+              title={msg.brainstorm.panel.pauseHint(BRAINSTORM_SHORTCUT)}
             >
-              Pausar
+              {msg.brainstorm.panel.pause}
             </button>
           )}
           {inProgress && (
@@ -475,11 +472,11 @@ function BrainstormSheet({ phase, mood, onOpened, onMinimize, onClosed }: Brains
               aria-pressed={pauseWhileWorking}
               title={
                 pauseWhileWorking
-                  ? "A voz fecha enquanto o agente trabalha (sem cobrança) e volta com o resultado. Clique para manter a voz aberta."
-                  : "A voz fica aberta enquanto o agente trabalha. Clique para pausar automaticamente."
+                  ? msg.brainstorm.panel.autoPauseOn
+                  : msg.brainstorm.panel.autoPauseOff
               }
             >
-              Pausa auto
+              {msg.brainstorm.panel.autoPause}
             </button>
           )}
           <button
@@ -487,16 +484,16 @@ function BrainstormSheet({ phase, mood, onOpened, onMinimize, onClosed }: Brains
             className="brainstorm-panel__button"
             onClick={copyAll}
             disabled={turns.length === 0 && tasks.length === 0}
-            title="Copiar conversa e análises em markdown"
+            title={msg.brainstorm.panel.copyHint}
           >
-            {copied ? <IconCheck size={13} /> : "Copiar"}
+            {copied ? <IconCheck size={13} /> : msg.brainstorm.panel.copy}
           </button>
           <button
             type="button"
             className="brainstorm-panel__button"
             onClick={onMinimize}
-            title="Recolher para a bolinha"
-            aria-label="Recolher para a bolinha"
+            title={msg.brainstorm.panel.minimize}
+            aria-label={msg.brainstorm.panel.minimize}
           >
             <IconMinimize size={13} />
           </button>
@@ -504,8 +501,12 @@ function BrainstormSheet({ phase, mood, onOpened, onMinimize, onClosed }: Brains
             type="button"
             className="brainstorm-panel__button"
             onClick={() => (inProgress ? void stopBrainstorm() : dismissBrainstorm())}
-            title={inProgress ? `Encerrar conversa (${BRAINSTORM_END_SHORTCUT})` : "Fechar painel"}
-            aria-label={inProgress ? "Encerrar conversa" : "Fechar painel"}
+            title={
+              inProgress
+                ? msg.brainstorm.panel.endHint(BRAINSTORM_END_SHORTCUT)
+                : msg.brainstorm.panel.close
+            }
+            aria-label={inProgress ? msg.brainstorm.panel.end : msg.brainstorm.panel.close}
           >
             <IconClose size={13} />
           </button>
@@ -516,14 +517,14 @@ function BrainstormSheet({ phase, mood, onOpened, onMinimize, onClosed }: Brains
       {error && <p className="brainstorm-panel__error">{error}</p>}
 
       {attachments.length > 0 && (
-        <ul className="brainstorm-panel__attachments" aria-label="Imagens para a próxima análise">
+        <ul className="brainstorm-panel__attachments" aria-label={msg.brainstorm.panel.attachmentsAria}>
           {attachments.map((path) => (
             <li key={path} className="brainstorm-panel__attachment" title={path}>
               <span>{basenamePath(path, path)}</span>
               <button
                 type="button"
                 onClick={() => removeBrainstormAttachment(path)}
-                aria-label={`Remover ${basenamePath(path, path)}`}
+                aria-label={msg.brainstorm.panel.removeAttachment(basenamePath(path, path))}
               >
                 <IconClose size={11} />
               </button>
@@ -549,13 +550,13 @@ function BrainstormSheet({ phase, mood, onOpened, onMinimize, onClosed }: Brains
           <p className="brainstorm-panel__hint">
             {status === "live"
               ? paneConversation && paneConversation.messages > 0
-                ? `Pode falar. A voz já leu a conversa que estava neste terminal${paneConversation.title ? ` (${paneConversation.title})` : ""}; pergunte sobre ela, peça um resumo ou siga em frente.`
-                : "Pode falar. Peça para olhar o código, relatar um bug, implementar algo ou pesquisar."
+                ? msg.brainstorm.panel.hintLiveWithConversation(paneConversation.title)
+                : msg.brainstorm.panel.hintLive
               : status === "connecting"
-                ? "Abrindo o microfone e conectando…"
+                ? msg.brainstorm.panel.hintConnecting
                 : status === "paused"
-                  ? "Voz pausada enquanto o agente trabalha."
-                  : "Nada foi dito nesta conversa."}
+                  ? msg.brainstorm.panel.hintPaused
+                  : msg.brainstorm.panel.hintEmpty}
           </p>
         ) : (
           turns.map((turn, index) => (
@@ -567,10 +568,14 @@ function BrainstormSheet({ phase, mood, onOpened, onMinimize, onClosed }: Brains
 
       <footer className="brainstorm-panel__footer">
         {status === "paused"
-          ? `${BRAINSTORM_SHORTCUT} retoma a voz · ${BRAINSTORM_END_SHORTCUT} ou X encerra · a voz volta sozinha com o resultado`
+          ? msg.brainstorm.panel.footerPaused(BRAINSTORM_SHORTCUT, BRAINSTORM_END_SHORTCUT)
           : inProgress
-            ? `${BRAINSTORM_SHORTCUT} pausa · ${BRAINSTORM_END_SHORTCUT} encerra · ${formatShortcut("Ctrl+V")} ou arrastar anexa imagem`
-            : `${BRAINSTORM_SHORTCUT} abre outra conversa`}
+            ? msg.brainstorm.panel.footerLive(
+                BRAINSTORM_SHORTCUT,
+                BRAINSTORM_END_SHORTCUT,
+                formatShortcut("Ctrl+V"),
+              )
+            : msg.brainstorm.panel.footerEnded(BRAINSTORM_SHORTCUT)}
       </footer>
     </aside>
   );

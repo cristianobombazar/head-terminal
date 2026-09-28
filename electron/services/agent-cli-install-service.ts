@@ -12,6 +12,7 @@ import {
   checkAgentClis,
   type AgentCliStatus,
 } from "./system-service";
+import { msg } from "../../src/i18n";
 
 export type InstallableAgentId = "cursor" | "claude" | "codex";
 
@@ -119,7 +120,7 @@ async function wingetInstall(packageId: string): Promise<void> {
 async function downloadFile(url: string, dest: string): Promise<void> {
   const response = await fetch(url);
   if (!response.ok) {
-    throw new Error(`Falha ao baixar ${url} (${response.status})`);
+    throw new Error(msg.main.install.downloadFailed(url, response.status));
   }
   await writeFile(dest, Buffer.from(await response.arrayBuffer()));
 }

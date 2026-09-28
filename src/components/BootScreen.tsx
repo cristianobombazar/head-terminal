@@ -6,6 +6,7 @@ import {
 } from "../core/export-diagnostic";
 import { getLastCheckpoint, getRunId } from "../core/logger";
 import { humanizeCheckpoint } from "../core/startup-labels";
+import { msg } from "../i18n";
 
 interface BootScreenProps {
   error?: string | null;
@@ -18,7 +19,7 @@ export function BootScreen({
   slow = false,
   showDiagnosticActions = false,
 }: BootScreenProps) {
-  const [stageLabel, setStageLabel] = useState("Iniciando sessões…");
+  const [stageLabel, setStageLabel] = useState(msg.app.boot.starting);
   const [exportPath, setExportPath] = useState<string | null>(null);
   const [copyDone, setCopyDone] = useState(false);
 
@@ -48,7 +49,7 @@ export function BootScreen({
               : "boot-screen__subtitle"
           }
         >
-          {error ?? (slow ? "A inicialização está demorando…" : stageLabel)}
+          {error ?? (slow ? msg.app.boot.slow : stageLabel)}
         </p>
         <p className="boot-screen__meta">
           run: {shortRunId} · {import.meta.env.DEV ? "dev" : "prod"}
@@ -64,7 +65,7 @@ export function BootScreen({
             className="boot-screen__retry"
             onClick={() => window.location.reload()}
           >
-            Tentar novamente
+            {msg.app.boot.retry}
           </button>
         )}
         {showDiagnosticActions && (
@@ -76,7 +77,7 @@ export function BootScreen({
                 void copyDiagnosticToClipboard().then(() => setCopyDone(true));
               }}
             >
-              {copyDone ? "Diagnóstico copiado" : "Copiar diagnóstico"}
+              {copyDone ? msg.app.boot.diagnosticCopied : msg.app.boot.copyDiagnostic}
             </button>
             <button
               type="button"
@@ -85,13 +86,13 @@ export function BootScreen({
                 void exportDiagnosticBundle().then((path) => setExportPath(path));
               }}
             >
-              Exportar diagnóstico
+              {msg.app.boot.exportDiagnostic}
             </button>
           </div>
         )}
         {exportPath && (
           <p className="boot-screen__export-path" title={exportPath}>
-            Salvo em logs/
+            {msg.app.boot.savedToLogs}
           </p>
         )}
       </div>

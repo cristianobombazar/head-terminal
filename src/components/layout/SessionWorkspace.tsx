@@ -1,5 +1,7 @@
 import { memo, useEffect, useMemo, useRef } from "react";
 
+import { useLocale } from "../../i18n/react";
+
 import {
   collectPaneIds,
   collectPaneRects,
@@ -32,6 +34,7 @@ export const SessionWorkspace = memo(function SessionWorkspace({
   searchPaneId,
   onCloseSearch,
 }: SessionWorkspaceProps) {
+  useLocale();
   const activePaneId = useSessionStore((state) => state.activePaneId);
   const activeSessionId = useSessionStore((state) => state.activeSessionId);
   const setActivePaneId = useSessionStore((state) => state.setActivePaneId);

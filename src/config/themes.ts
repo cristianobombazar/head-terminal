@@ -1,4 +1,5 @@
 import type { ITheme } from "@xterm/xterm";
+import { msg } from "../i18n";
 
 /**
  * Um tema pinta duas coisas: o chrome do app (tokens CSS em `:root`) e o
@@ -82,7 +83,9 @@ export interface AppTheme {
 // deliberadamente quieto, e as cores do terminal é que carregam a informação.
 const GRAPHITE: AppTheme = {
   id: "graphite",
-  name: "Grafite",
+  get name() {
+    return msg.core.themes.graphite;
+  },
   kind: "dark",
   app: {
     "--bg-0": "#0b0c0e",
@@ -137,7 +140,9 @@ const GRAPHITE: AppTheme = {
 // fundo branco.
 const LIGHT: AppTheme = {
   id: "light",
-  name: "Claro",
+  get name() {
+    return msg.core.themes.light;
+  },
   kind: "light",
   app: {
     "--bg-0": "#ffffff",

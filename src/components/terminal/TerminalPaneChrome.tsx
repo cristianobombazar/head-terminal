@@ -17,13 +17,14 @@ import {
   CONVERSATION_LABEL_MAX_LENGTH,
   useSessionStore,
 } from "../../core/session-manager";
-import { NEW_CONVERSATION_LABEL } from "../../core/conversation-display";
+import { newConversationLabel } from "../../core/conversation-display";
 import { collectPaneIds, findPaneNode } from "../../core/session-layout";
 import { minimizePaneWithMotion } from "../../core/pane-minimize";
 import { basenamePath } from "../../core/path-utils";
 import { formatShortcut } from "../../core/shortcuts";
 import { isolatePaneInWorktree } from "../../core/worktree";
 import { usePaneConversation } from "../../hooks/usePaneConversation";
+import { msg } from "../../i18n";
 import { GitBranchBadge } from "../ui/GitBranchBadge";
 import {
   IconActivity,
@@ -112,23 +113,21 @@ function ReconnectCountdown({
 
   return (
     <div className="terminal-overlay terminal-overlay--reconnect">
-      <span>
-        Reconectando em {remaining}s (tentativa {attempt}/5)
-      </span>
+      <span>{msg.terminal.overlay.reconnecting(remaining, attempt)}</span>
       <div className="terminal-overlay__actions">
         <button
           type="button"
           className="terminal-overlay__action"
           onClick={() => paneSupervisor.restartNow(paneId)}
         >
-          Agora
+          {msg.terminal.overlay.now}
         </button>
         <button
           type="button"
           className="terminal-overlay__action terminal-overlay__action--ghost"
           onClick={() => paneSupervisor.cancel(paneId)}
         >
-          Cancelar
+          {msg.terminal.overlay.cancel}
         </button>
       </div>
     </div>
@@ -161,10 +160,10 @@ export function TerminalPaneOverlay({ paneId }: TerminalPaneOverlayProps) {
       <div className="terminal-overlay terminal-overlay--error">
         <span>
           {supervisorState.attempt > 0
-            ? `Reconexão falhou após ${supervisorState.attempt} tentativas`
+            ? msg.terminal.overlay.reconnectFailed(supervisorState.attempt)
             : activity === "error"
-              ? "O terminal encontrou um erro"
-              : "Processo encerrado"}
+              ? msg.terminal.overlay.error
+              : msg.terminal.overlay.exited}
         </span>
         <div className="terminal-overlay__actions">
           <button
@@ -172,7 +171,7 @@ export function TerminalPaneOverlay({ paneId }: TerminalPaneOverlayProps) {
             className="terminal-overlay__action"
             onClick={() => paneSupervisor.restartNow(paneId)}
           >
-            Reiniciar
+            {msg.terminal.overlay.restart}
           </button>
         </div>
       </div>
@@ -186,8 +185,8 @@ export function TerminalPaneOverlay({ paneId }: TerminalPaneOverlayProps) {
       <div className="terminal-overlay terminal-overlay--error">
         <span>
           {activity === "error"
-            ? "O terminal encontrou um erro"
-            : "Processo encerrado"}
+            ? msg.terminal.overlay.error
+            : msg.terminal.overlay.exited}
         </span>
         <div className="terminal-overlay__actions">
           <button
@@ -195,7 +194,7 @@ export function TerminalPaneOverlay({ paneId }: TerminalPaneOverlayProps) {
             className="terminal-overlay__action"
             onClick={() => paneSupervisor.restartNow(paneId)}
           >
-            Reiniciar
+            {msg.terminal.overlay.restart}
           </button>
         </div>
       </div>
@@ -244,7 +243,7 @@ function PaneConversationName({
     return null;
   }
 
-  const displayName = conversation.name ?? NEW_CONVERSATION_LABEL;
+  const displayName = conversation.name ?? newConversationLabel();
   const modifier = conversation.isCustom
     ? " terminal-pane-header__conversation--named"
     : conversation.name
@@ -258,7 +257,7 @@ function PaneConversationName({
         className="terminal-pane-header__conversation-input"
         value={draft}
         maxLength={CONVERSATION_LABEL_MAX_LENGTH}
-        placeholder="Nome da conversa"
+        placeholder={msg.terminal.header.conversationPlaceholder}
         onChange={(event) => setDraft(event.target.value)}
         onClick={(event) => event.stopPropagation()}
         onBlur={() => {
@@ -289,7 +288,7 @@ function PaneConversationName({
       <button
         type="button"
         className={`terminal-pane-header__conversation${modifier}`}
-        title={`Conversa: ${displayName} — clique para renomear (vazio volta ao nome automático)`}
+        title={msg.terminal.header.conversationHint(displayName)}
         onClick={(event) => {
           event.stopPropagation();
           setDraft(conversation.name ?? "");
@@ -317,8 +316,8 @@ function PaneFolderButton({ paneId, cwd }: { paneId: string; cwd: string }) {
     <button
       type="button"
       className="terminal-pane-header__cwd"
-      title={`Pasta: ${cwd} — clique para trocar (reinicia só este terminal)`}
-      aria-label={`Pasta do terminal: ${cwd}`}
+      title={msg.terminal.header.folderHint(cwd)}
+      aria-label={msg.terminal.header.folderAria(cwd)}
       onClick={(event) => {
         event.stopPropagation();
         void window.headTerminal.system
@@ -349,8 +348,8 @@ function PaneIsolateButton({ paneId }: { paneId: string }) {
       type="button"
       className="terminal-pane-header__action"
       disabled={isolating}
-      title="Isolar em worktree: branch agent-N em pasta irmã, com os arquivos ignorados copiados. Reinicia só este terminal."
-      aria-label="Isolar este terminal em um worktree"
+      title={msg.terminal.header.isolateHint}
+      aria-label={msg.terminal.header.isolateAria}
       onClick={(event) => {
         event.stopPropagation();
         setIsolating(true);
@@ -418,6 +417,12 @@ export function TerminalPaneHeader({
   );
   const branchLabel = formatBranchLabel(gitContext);
   const shortLabel = paneShortLabel(agentProfileId, paneIndex);
+  // `claude` typed in this terminal shows as Claude while it runs; the pane
+  // keeps its own name (sh1), since that is still what it is.
+  const runningAgent = useSessionStore(
+    (state) => state.paneRuntime[paneId]?.runningAgent,
+  );
+  const shownAgent = runningAgent ?? agentProfileId;
 
   return (
     <div
@@ -430,10 +435,14 @@ export function TerminalPaneHeader({
     >
       <span className="terminal-pane-header__title">
         <span
-          className={`terminal-pane-header__agent terminal-pane-header__agent--${agentProfileId}`}
-          title={agentProfileId}
+          className={`terminal-pane-header__agent terminal-pane-header__agent--${shownAgent}`}
+          title={
+            shownAgent === agentProfileId
+              ? agentProfileId
+              : msg.terminal.header.claudeInShell
+          }
         >
-          <AgentIcon agentProfileId={agentProfileId} size={13} />
+          <AgentIcon agentProfileId={shownAgent} size={13} />
         </span>
         <span className="terminal-pane-header__name">{shortLabel}</span>
         <PaneFolderButton paneId={paneId} cwd={cwd} />
@@ -467,16 +476,16 @@ export function TerminalPaneHeader({
                 : "terminal-pane-header__context"
             }
             style={{ color: contextColor(contextPercent) }}
-            title={`Contexto restante do agent: ${contextPercent}%`}
+            title={msg.terminal.header.contextHint(contextPercent)}
           >
-            ctx {contextPercent}%
+            {msg.terminal.header.context(contextPercent)}
           </span>
         )}
         <span
           className={`terminal-pane-header__status terminal-pane-header__status--${activity}`}
           title={
             activity === "agent_fallback"
-              ? "Agent caiu — shell ativo"
+              ? msg.terminal.header.agentFallback
               : ACTIVITY_LABEL[activity]
           }
         >
@@ -486,7 +495,7 @@ export function TerminalPaneHeader({
           <button
             type="button"
             className="terminal-pane-header__restart-agent"
-            title="Agent caiu — shell ativo. Nova conversa. Segure Shift para continuar a anterior."
+            title={msg.terminal.header.restartAgentHint}
             onClick={(event) => {
               event.stopPropagation();
               restartPane(paneId, {
@@ -494,7 +503,7 @@ export function TerminalPaneHeader({
               });
             }}
           >
-            Reiniciar agent
+            {msg.terminal.header.restartAgent}
           </button>
         )}
         <VoiceInputButton paneId={paneId} />
@@ -511,13 +520,13 @@ export function TerminalPaneHeader({
             }
             title={
               isMaximized
-                ? `Restaurar os outros terminais (${formatShortcut("Ctrl+Shift+Z")})`
-                : `Expandir: só este terminal na área da sessão (${formatShortcut("Ctrl+Shift+Z")})`
+                ? msg.terminal.header.restoreOthersHint(formatShortcut("Ctrl+Shift+Z"))
+                : msg.terminal.header.maximizeHint(formatShortcut("Ctrl+Shift+Z"))
             }
             aria-label={
               isMaximized
-                ? "Restaurar layout da sessão"
-                : `Expandir ${shortLabel}`
+                ? msg.terminal.header.restoreLayoutAria
+                : msg.terminal.header.maximizeAria(shortLabel)
             }
             aria-pressed={isMaximized}
             onClick={(event) => {
@@ -532,8 +541,8 @@ export function TerminalPaneHeader({
         <button
           type="button"
           className="terminal-pane-header__action"
-          title={`Dividir abaixo (${formatShortcut("Ctrl+\\")})`}
-          aria-label="Dividir verticalmente"
+          title={msg.terminal.header.splitBelowHint(formatShortcut("Ctrl+\\"))}
+          aria-label={msg.terminal.header.splitVerticalAria}
           onClick={(event) => {
             event.stopPropagation();
             onFocus();
@@ -545,8 +554,8 @@ export function TerminalPaneHeader({
         <button
           type="button"
           className="terminal-pane-header__action"
-          title={`Dividir ao lado (${formatShortcut("Ctrl+Shift+\\")})`}
-          aria-label="Dividir horizontalmente"
+          title={msg.terminal.header.splitBesideHint(formatShortcut("Ctrl+Shift+\\"))}
+          aria-label={msg.terminal.header.splitHorizontalAria}
           onClick={(event) => {
             event.stopPropagation();
             onFocus();
@@ -558,8 +567,8 @@ export function TerminalPaneHeader({
         <button
           type="button"
           className="terminal-pane-header__action"
-          title="Reiniciar pane (Shift: continuar conversa)"
-          aria-label={`Reiniciar ${shortLabel}`}
+          title={msg.terminal.header.restartHint}
+          aria-label={msg.terminal.header.restartAria(shortLabel)}
           onClick={(event) => {
             event.stopPropagation();
             restartPane(paneId, {
@@ -572,8 +581,8 @@ export function TerminalPaneHeader({
         <button
           type="button"
           className="terminal-pane-header__action"
-          title={`Minimizar (${formatShortcut("Ctrl+Shift+M")}): sai da tela e o agent segue rodando; o status fica num card da sessão`}
-          aria-label={`Minimizar ${shortLabel}`}
+          title={msg.terminal.header.minimizeHint(formatShortcut("Ctrl+Shift+M"))}
+          aria-label={msg.terminal.header.minimizeAria(shortLabel)}
           onClick={(event) => {
             event.stopPropagation();
             minimizePaneWithMotion(paneId);
@@ -585,8 +594,8 @@ export function TerminalPaneHeader({
           <button
             type="button"
             className="terminal-pane-header__action terminal-pane-header__close"
-            title="Fechar terminal"
-            aria-label={`Fechar ${shortLabel}`}
+            title={msg.terminal.header.closeHint}
+            aria-label={msg.terminal.header.closeAria(shortLabel)}
             onClick={(event) => {
               event.stopPropagation();
               onClose();

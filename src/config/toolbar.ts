@@ -1,3 +1,5 @@
+import { msg } from "../i18n";
+
 export const CLEAR_SHORTCUT = "Ctrl+Shift+L";
 export const HARD_CLEAR_SHORTCUT = "Ctrl+Shift+Alt+L";
 export const COMMAND_PALETTE_SHORTCUT = "Ctrl+Shift+P";
@@ -13,31 +15,40 @@ export interface ToolbarCommand {
   description?: string;
 }
 
+// Labels are getters: read when shown, so a language switch shows up in place.
 export const AGENT_COMMANDS: ToolbarCommand[] = [
   {
     id: "clear",
     label: "Clear",
     command: "/clear",
     shortcut: CLEAR_SHORTCUT,
-    description: "Limpa o contexto do agent (Shift+clique no botão reinicia o PTY)",
+    get description() {
+      return msg.core.toolbar.clearDescription;
+    },
   },
   {
     id: "compact",
     label: "Compact",
     command: "/compact",
-    description: "Compacta o contexto do agent",
+    get description() {
+      return msg.core.toolbar.compactDescription;
+    },
   },
   {
     id: "context",
     label: "Context",
     command: "/context",
-    description: "Mostra o contexto atual do agent",
+    get description() {
+      return msg.core.toolbar.contextDescription;
+    },
   },
   {
     id: "help",
     label: "Help",
     command: "/help",
-    description: "Lista comandos disponíveis",
+    get description() {
+      return msg.core.toolbar.helpDescription;
+    },
   },
 ];
 
@@ -48,77 +59,113 @@ export const PALETTE_ACTIONS: ToolbarCommand[] = [
     label: "Split vertical",
     command: "__split_vertical__",
     shortcut: "Ctrl+\\",
-    description: "Divide o terminal ativo verticalmente",
+    get description() {
+      return msg.core.toolbar.splitVerticalDescription;
+    },
   },
   {
     id: "split-horizontal",
     label: "Split horizontal",
     command: "__split_horizontal__",
     shortcut: "Ctrl+Shift+\\",
-    description: "Divide o terminal ativo horizontalmente",
+    get description() {
+      return msg.core.toolbar.splitHorizontalDescription;
+    },
   },
   {
     id: "toggle-maximize-pane",
-    label: "Expandir terminal",
+    get label() {
+      return msg.core.toolbar.maximizePane;
+    },
     command: "__toggle_maximize_pane__",
     shortcut: "Ctrl+Shift+Z",
-    description:
-      "Mostra só o terminal ativo na área da sessão, ou traz os outros de volta",
+    get description() {
+      return msg.core.toolbar.maximizePaneDescription;
+    },
   },
   {
     id: "toggle-minimize-pane",
-    label: "Minimizar terminal",
+    get label() {
+      return msg.core.toolbar.minimizePane;
+    },
     command: "__toggle_minimize_pane__",
     shortcut: "Ctrl+Shift+M",
-    description:
-      "Tira o terminal ativo da tela sem parar o agent; o status dele fica num card da sessão até restaurar",
+    get description() {
+      return msg.core.toolbar.minimizePaneDescription;
+    },
   },
   {
     id: "close-pane",
-    label: "Fechar terminal",
+    get label() {
+      return msg.core.toolbar.closePane;
+    },
     command: "__close_pane__",
     shortcut: "Ctrl+Shift+W",
-    description: "Fecha o terminal ativo (requer mais de um terminal na sessão)",
+    get description() {
+      return msg.core.toolbar.closePaneDescription;
+    },
   },
   {
     id: "export-diagnostic",
-    label: "Exportar diagnóstico de inicialização",
+    get label() {
+      return msg.core.toolbar.exportDiagnostic;
+    },
     command: "__export_diagnostic__",
-    description: "Salva logs de boot e estado da UI na pasta de logs do app (Diagnóstico mostra o caminho)",
+    get description() {
+      return msg.core.toolbar.exportDiagnosticDescription;
+    },
   },
   {
     id: "ghost-diagnostic",
-    label: "Diagnosticar caracteres fantasma",
+    get label() {
+      return msg.core.toolbar.ghostDiagnostic;
+    },
     command: "__ghost_diagnostic__",
-    description:
-      "Lê as colunas iniciais do buffer do terminal ativo, força o redesenho do renderer e copia o relatório",
+    get description() {
+      return msg.core.toolbar.ghostDiagnosticDescription;
+    },
   },
   {
     id: "rename-session",
-    label: "Renomear sessão",
+    get label() {
+      return msg.core.toolbar.renameSession;
+    },
     command: "__rename_session__",
     shortcut: "F2",
-    description: "Renomeia a sessão ativa",
+    get description() {
+      return msg.core.toolbar.renameSessionDescription;
+    },
   },
   {
     id: "settings",
-    label: "Configurações",
+    get label() {
+      return msg.core.toolbar.settings;
+    },
     command: "__settings__",
-    description: "Configura a chave da API OpenAI para ditado e brainstorm por voz",
+    get description() {
+      return msg.core.toolbar.settingsDescription;
+    },
   },
   {
     id: "voice-input",
-    label: "Gravar prompt por voz",
+    get label() {
+      return msg.core.toolbar.voiceInput;
+    },
     command: "__voice_input__",
     shortcut: VOICE_SHORTCUT,
-    description: "Inicia ou para a gravação de voz no terminal ativo",
+    get description() {
+      return msg.core.toolbar.voiceInputDescription;
+    },
   },
   {
     id: "voice-brainstorm",
-    label: "Brainstorm por voz",
+    get label() {
+      return msg.core.toolbar.voiceBrainstorm;
+    },
     command: "__voice_brainstorm__",
     shortcut: BRAINSTORM_SHORTCUT,
-    description:
-      "Conversa por voz sobre o terminal ativo, já por dentro da conversa que estava nele; aparece como uma bolinha no canto (clique abre o painel; F10 pausa e retoma a voz, F11 encerra). O agente do terminal analisa e executa com a permissão dele",
+    get description() {
+      return msg.core.toolbar.voiceBrainstormDescription;
+    },
   },
 ];

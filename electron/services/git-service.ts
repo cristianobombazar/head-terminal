@@ -1,6 +1,7 @@
 import { stat } from "node:fs/promises";
 
 import { runCommand, type CommandFailure } from "./command-runner";
+import { msg } from "../../src/i18n";
 
 const GIT_TIMEOUT_MS = 10_000;
 const GIT_MAX_BUFFER = 16 * 1024 * 1024;
@@ -36,7 +37,7 @@ export function validateCwd(cwd: string): string {
     cwd.length > MAX_PATH_LENGTH ||
     cwd.includes("\0")
   ) {
-    throw new Error("Diretório inválido");
+    throw new Error(msg.main.paths.invalidDirectory);
   }
   return cwd;
 }
@@ -134,7 +135,7 @@ export async function getGitContext(cwd: string): Promise<GitContextPayload> {
 export async function getSessionDiff(cwd: string): Promise<string> {
   const repoRoot = await resolveRepoRoot(cwd);
   if (!repoRoot) {
-    throw new Error("O diretório não é um repositório git");
+    throw new Error(msg.main.git.notARepository);
   }
 
   const [diffResult, untrackedResult] = await Promise.all([

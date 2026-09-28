@@ -15,7 +15,15 @@ import {
   webContents,
 } from "electron";
 
-import { IPC_CHANNELS } from "./ipc/channels";
+import {
+  chooseLocale,
+  isLocale,
+  locale,
+  msg,
+  setLocale,
+  type Locale,
+} from "../src/i18n";
+import { IPC_CHANNELS, LOCALE_ARGUMENT } from "./ipc/channels";
 import { registerIpc, type IpcServices } from "./ipc/register";
 import { buildMacApplicationMenu } from "./mac-menu";
 import { adoptLoginShellPath } from "./services/shell-env";
@@ -32,7 +40,9 @@ import {
   MigrationService,
   readWebKitLocalStorageDatabase,
 } from "./services/migration-service";
-import { PtyService } from "./services/pty-service";
+import { PtyService, type PtyServiceEvent } from "./services/pty-service";
+import { readLanguagePreference } from "./services/language-preference";
+import { systemLanguages } from "./system-languages";
 import { getResourceUsage } from "./services/resource-usage-service";
 import { SecretService } from "./services/secret-service";
 import * as systemService from "./services/system-service";
@@ -50,6 +60,40 @@ function parseWindowsBuildNumber(osRelease: string): number | undefined {
 }
 
 const RUN_ID = randomUUID().replaceAll("-", "");
+
+/**
+ * The UI language: the one picked in Settings, or — on "auto" — the
+ * machine's first preferred language the app speaks, Portuguese when it
+ * speaks none of them. `HEAD_TERMINAL_LOCALE` pins it (`en` / `pt-BR`), for
+ * development and tests.
+ */
+function resolveAppLocale(): Locale {
+  const pinned = process.env.HEAD_TERMINAL_LOCALE;
+  if (isLocale(pinned)) {
+    return pinned;
+  }
+  return chooseLocale(readLanguagePreference(app.getPath("userData")), systemLanguages());
+}
+
+/**
+ * Switches main's language: at startup, and again when Settings picks
+ * another one. Dialogs and notifications read `msg` when shown; the menu is
+ * built once, so it is built again in the new language.
+ */
+function applyLocale(next: Locale): void {
+  setLocale(next);
+  if (process.platform === "darwin") {
+    Menu.setApplicationMenu(
+      buildMacApplicationMenu({ appName: app.name, development: !app.isPackaged }),
+    );
+  }
+}
+
+const PTY_EVENT_CHANNELS: Record<PtyServiceEvent["channel"], string> = {
+  "pty:data": IPC_CHANNELS.terminal.data,
+  "pty:exit": IPC_CHANNELS.terminal.exit,
+  "pty:agent": IPC_CHANNELS.terminal.agent,
+};
 
 /** System Settings › Privacy & Security › Microphone, as a URL macOS opens. */
 const MAC_MICROPHONE_PRIVACY_PANE =
@@ -146,6 +190,7 @@ if (!gotSingleInstanceLock) {
       services,
       isQuitting: () => isQuitting,
       runId: RUN_ID,
+      onLocaleChange: applyLocale,
     });
     // On macOS the app outlives its window (closed from the red button, back
     // from the Dock): drop the IPC bindings and the reference, so `activate`
@@ -169,10 +214,9 @@ if (!gotSingleInstanceLock) {
   });
 
   void app.whenReady().then(async () => {
+    // Before the menu, any dialog or the window: all of them speak it.
+    applyLocale(resolveAppLocale());
     if (process.platform === "darwin") {
-      Menu.setApplicationMenu(
-        buildMacApplicationMenu({ appName: app.name, development: !app.isPackaged }),
-      );
       // Before any service spawns a CLI or a pane inherits process.env: a
       // Finder/Dock launch carries launchd's PATH, not the user's shell's.
       await adoptLoginShellPath();
@@ -297,12 +341,7 @@ async function createServices(): Promise<{
     emit(event) {
       const owner = webContents.fromId(event.ownerId);
       if (!owner || owner.isDestroyed()) return;
-      owner.send(
-        event.channel === "pty:data"
-          ? IPC_CHANNELS.terminal.data
-          : IPC_CHANNELS.terminal.exit,
-        event.payload,
-      );
+      owner.send(PTY_EVENT_CHANNELS[event.channel], event.payload);
     },
   });
   const git = createGitService();
@@ -348,7 +387,7 @@ async function createServices(): Promise<{
           properties: ["openFile"],
           filters: [
             { name: "GGUF", extensions: ["gguf"] },
-            { name: "Todos", extensions: ["*"] },
+            { name: msg.main.dialog.allFiles, extensions: ["*"] },
           ],
           ...(defaultPath ? { defaultPath } : {}),
         });
@@ -360,7 +399,10 @@ async function createServices(): Promise<{
           title: input.title ?? "Head Terminal",
           message: input.message,
           detail: input.detail,
-          buttons: [input.confirmLabel ?? "Confirmar", input.cancelLabel ?? "Cancelar"],
+          buttons: [
+            input.confirmLabel ?? msg.main.dialog.confirm,
+            input.cancelLabel ?? msg.main.dialog.cancel,
+          ],
           defaultId: 0,
           cancelId: 1,
           noLink: true,
@@ -441,6 +483,9 @@ function createMainWindow(): BrowserWindow {
       nodeIntegration: false,
       sandbox: true,
       webSecurity: true,
+      // The preload reads it synchronously, so the renderer's modules load
+      // already knowing which language their label tables are in.
+      additionalArguments: [`${LOCALE_ARGUMENT}${locale}`],
     },
   });
 

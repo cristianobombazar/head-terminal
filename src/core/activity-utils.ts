@@ -32,6 +32,24 @@ export function getSessionActivity(
 }
 
 /**
+ * The agent a session shows: its own, unless one of its terminals is running
+ * Claude it didn't launch as — `claude` typed in a shell. That lasts only
+ * while the CLI runs; the session itself stays what it was created as.
+ */
+export function getSessionShownAgent(
+  session: AgentSession,
+  paneRuntime: Record<string, PaneRuntime>,
+): string {
+  if (session.agentProfileId === "claude") {
+    return "claude";
+  }
+  const runsClaude = collectPaneIds(session.layout).some(
+    (paneId) => paneRuntime[paneId]?.runningAgent === "claude",
+  );
+  return runsClaude ? "claude" : session.agentProfileId;
+}
+
+/**
  * When the session's aggregated activity started. Only panes that share the
  * winning activity count: the sidebar used to take the newest timestamp of
  * any pane, so "Executando há 3s" could be timed by a sibling pane that had

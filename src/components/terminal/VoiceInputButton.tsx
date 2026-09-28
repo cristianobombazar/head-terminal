@@ -8,6 +8,7 @@ import {
   toggleVoiceInput,
 } from "../../core/voice-input";
 import { cancelVoiceRecording } from "../../core/voice-bridge";
+import { msg } from "../../i18n";
 import { IconMic } from "../ui/Icons";
 
 type VoiceButtonState = "idle" | "error";
@@ -78,8 +79,8 @@ export function VoiceInputButton({ paneId }: VoiceInputButtonProps) {
   }
 
   const title = isRecording
-    ? `Parar gravação e transcrever (${VOICE_SHORTCUT})`
-    : `Gravar prompt por voz (${VOICE_SHORTCUT})`;
+    ? msg.terminal.voice.stop(VOICE_SHORTCUT)
+    : msg.terminal.voice.record(VOICE_SHORTCUT);
 
   return (
     <button

@@ -2,6 +2,7 @@ import { createInitialSession } from "../core/agent-launcher";
 import { useSessionStore } from "../core/session-manager";
 import { createIsolatedWorktree, planWorktree } from "../core/worktree";
 import type { AgentSession, WorktreeRef } from "../types/session";
+import { msg } from "../i18n";
 
 /** Duplica uma sessão sem jogar a cópia na árvore que a original já ocupa.
  *
@@ -27,7 +28,7 @@ export async function duplicateSessionIsolated(
   useSessionStore.getState().addSession(
     createInitialSession(
       cwd,
-      `${session.title} (cópia)`,
+      msg.core.sessions.copyTitle(session.title),
       session.agentProfileId,
       {
         claudeAccountId: session.claudeAccountId,

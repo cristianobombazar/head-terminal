@@ -5,6 +5,7 @@ export const IPC_CHANNELS = {
     requestClose: "app:request-close",
     respondToClose: "app:respond-to-close",
     closeRequested: "app:close-requested",
+    setLanguage: "app:set-language",
   },
   terminal: {
     spawn: "terminal:spawn",
@@ -13,6 +14,7 @@ export const IPC_CHANNELS = {
     kill: "terminal:kill",
     data: "terminal:data",
     exit: "terminal:exit",
+    agent: "terminal:agent",
   },
   git: {
     getContext: "git:get-context",
@@ -93,3 +95,10 @@ type LeafValues<T> = T extends string
   : { [K in keyof T]: LeafValues<T[K]> }[keyof T];
 
 export type IpcChannel = LeafValues<typeof IPC_CHANNELS>;
+
+/**
+ * Not a channel: the command-line switch main appends for the preload
+ * (`webPreferences.additionalArguments`) carrying the UI language, which the
+ * renderer needs before its first module runs — too early for any IPC.
+ */
+export const LOCALE_ARGUMENT = "--head-terminal-locale=";

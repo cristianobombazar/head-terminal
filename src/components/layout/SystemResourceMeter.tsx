@@ -4,6 +4,7 @@ import {
   resourceLoadColor,
 } from "../../core/resource-usage";
 import { useResourceUsage } from "../../hooks/useResourceUsage";
+import { msg } from "../../i18n";
 import { IconCpu, IconDisk, IconMemory } from "../ui/Icons";
 
 interface SystemResourceMeterProps {
@@ -83,10 +84,10 @@ export function SystemResourceMeter({ collapsed }: SystemResourceMeterProps) {
   const { memory, disk } = usage;
   const memoryText = formatUsage(memory.usedBytes, memory.totalBytes);
   const summary = [
-    `CPU ${formatPercent(usage.cpuPercent)}`,
-    `Memória ${memoryText} (${formatPercent(memory.percent)})`,
+    `${msg.app.meter.cpu} ${formatPercent(usage.cpuPercent)}`,
+    `${msg.app.meter.memory} ${memoryText} (${formatPercent(memory.percent)})`,
     disk
-      ? `Disco ${disk.label} ${formatUsage(disk.usedBytes, disk.totalBytes)} (${formatPercent(disk.percent)})`
+      ? `${msg.app.meter.disk(disk.label)} ${formatUsage(disk.usedBytes, disk.totalBytes)} (${formatPercent(disk.percent)})`
       : null,
   ]
     .filter(Boolean)
@@ -115,12 +116,12 @@ export function SystemResourceMeter({ collapsed }: SystemResourceMeterProps) {
     <div className="resource-meter" title={summary}>
       <MeterRow
         icon={<IconCpu size={12} />}
-        label="CPU"
+        label={msg.app.meter.cpu}
         percent={usage.cpuPercent}
       />
       <MeterRow
         icon={<IconMemory size={12} />}
-        label="Memória"
+        label={msg.app.meter.memory}
         detail={memoryText}
         percent={memory.percent}
       />
@@ -129,7 +130,7 @@ export function SystemResourceMeter({ collapsed }: SystemResourceMeterProps) {
       {disk && (
         <MeterRow
           icon={<IconDisk size={12} />}
-          label={`Disco ${disk.label}`}
+          label={msg.app.meter.disk(disk.label)}
           detail={formatUsage(disk.usedBytes, disk.totalBytes)}
           percent={disk.percent}
         />

@@ -16,6 +16,7 @@ import {
 } from "../../config/agents-windows";
 import { isWindowsHost } from "../../core/platform-info";
 import { planWorktree } from "../../core/worktree";
+import { msg } from "../../i18n";
 import type { WorktreeRef } from "../../types/session";
 import type { WorktreePlan } from "../../../electron/types/api";
 
@@ -155,9 +156,9 @@ function LlamaGgufFields({
 
   return (
     <fieldset className="create-session-dialog__fieldset">
-      <legend>Modelo nesta máquina</legend>
+      <legend>{msg.createSession.ggufModel}</legend>
       <label className="create-session-dialog__field">
-        <span>Arquivo GGUF</span>
+        <span>{msg.createSession.ggufFile}</span>
         <div className="create-session-dialog__cwd-row">
           <input
             type="text"
@@ -171,7 +172,7 @@ function LlamaGgufFields({
             className="agent-toolbar__button--ghost"
             onClick={() => void browseGguf()}
           >
-            Procurar…
+            {msg.createSession.browse}
           </button>
         </div>
       </label>
@@ -461,12 +462,12 @@ export function CreateSessionDialog({
     try {
       exists = await window.headTerminal.system.pathExists(nextCwd);
     } catch {
-      setCwdError("Não foi possível acessar o diretório");
+      setCwdError(msg.createSession.directoryUnreachable);
       setCreating(false);
       return;
     }
     if (!exists) {
-      setCwdError("Diretório não encontrado");
+      setCwdError(msg.createSession.directoryNotFound);
       setCreating(false);
       return;
     }
@@ -495,7 +496,7 @@ export function CreateSessionDialog({
           mainRepoRoot: info.mainRepoRoot,
         };
       } catch (error) {
-        setCwdError(`Falha ao criar worktree: ${String(error)}`);
+        setCwdError(msg.createSession.worktreeFailed(String(error)));
         setCreating(false);
         return;
       }
@@ -555,14 +556,14 @@ export function CreateSessionDialog({
         <header className="create-session-dialog__header">
           <div>
             <h2 id="create-session-title" className="create-session-dialog__title">
-              Nova sessão
+              {msg.createSession.title}
             </h2>
-            <p>Escolha onde e com qual agent você quer trabalhar.</p>
+            <p>{msg.createSession.subtitle}</p>
           </div>
           <button
             type="button"
             className="create-session-dialog__close"
-            aria-label="Fechar"
+            aria-label={msg.createSession.closeAria}
             onClick={onClose}
           >
             <IconClose size={16} />
@@ -571,7 +572,7 @@ export function CreateSessionDialog({
 
         <div className="create-session-dialog__body">
           <label className="create-session-dialog__field">
-          <span>Diretório</span>
+          <span>{msg.createSession.directory}</span>
           <div className="create-session-dialog__cwd-row">
             <input
               type="text"
@@ -580,14 +581,14 @@ export function CreateSessionDialog({
                 setCwd(event.target.value);
                 setCwdError(null);
               }}
-              placeholder="C:\Users\projeto"
+              placeholder={msg.createSession.directoryPlaceholder}
             />
             <button
               type="button"
               className="agent-toolbar__button--ghost"
               onClick={() => void browseDirectory()}
             >
-              Procurar…
+              {msg.createSession.browse}
             </button>
           </div>
           {cwdError && (
@@ -624,18 +625,18 @@ export function CreateSessionDialog({
             <span>
               <strong>
                 {worktreePlan.recommended
-                  ? "Worktree isolado (recomendado)"
-                  : "Worktree isolado"}
+                  ? msg.createSession.worktreeRecommended
+                  : msg.createSession.worktree}
               </strong>
               {worktreePlan.recommended
-                ? `Esta árvore já está aberta em ${worktreePlan.occupants} terminal(is) — dois agents nela brigam pelo mesmo git. Cria uma branch agent-N em pasta irmã, com os arquivos ignorados (.env e afins) copiados.`
-                : "Ninguém mais está nesta árvore, então a sessão abre o repositório direto. Marque para trabalhar numa branch agent-N à parte mesmo assim."}
+                ? msg.createSession.worktreeBusy(worktreePlan.occupants)
+                : msg.createSession.worktreeFree}
             </span>
           </label>
         )}
 
         <fieldset className="create-session-dialog__fieldset">
-          <legend>Agent</legend>
+          <legend>{msg.createSession.agent}</legend>
           <div className="create-session-dialog__agents">
             {profiles.map((profile) => {
               const available = isAgentAvailable(profile.id);
@@ -670,8 +671,8 @@ export function CreateSessionDialog({
                 >
                   <AgentIcon id={profile.id} />
                   <span>{profile.label}</span>
-                  {installing && <small>Instalando…</small>}
-                  {!available && !installing && <small>Não instalado</small>}
+                  {installing && <small>{msg.createSession.installing}</small>}
+                  {!available && !installing && <small>{msg.createSession.notInstalled}</small>}
                 </button>
               );
             })}
@@ -680,17 +681,17 @@ export function CreateSessionDialog({
             <div className="create-session-dialog__install">
               <span>
                 {ensuringClis
-                  ? "Instalando CLIs que faltam…"
-                  : `Não instalado: ${missingInstallable
-                      .map((id) => profileLabel(id))
-                      .join(", ")}`}
+                  ? msg.createSession.installingMissing
+                  : msg.createSession.notInstalledList(
+                      missingInstallable.map((id) => profileLabel(id)).join(", "),
+                    )}
               </span>
               <button
                 type="button"
                 disabled={ensuringClis}
                 onClick={() => void retryInstall()}
               >
-                {ensuringClis ? "Instalando…" : "Instalar agora"}
+                {ensuringClis ? msg.createSession.installing : msg.createSession.installNow}
               </button>
             </div>
           )}
@@ -698,7 +699,7 @@ export function CreateSessionDialog({
 
         {agentProfileId === "ollama" && (
           <fieldset className="create-session-dialog__fieldset">
-            <legend>Modelo local</legend>
+            <legend>{msg.createSession.localModel}</legend>
             {ollamaModels.length > 0 && (
               <div className="create-session-dialog__profiles">
                 {ollamaModels.map((model) => (
@@ -720,7 +721,7 @@ export function CreateSessionDialog({
               </div>
             )}
             <label className="create-session-dialog__field">
-              <span>Outro modelo</span>
+              <span>{msg.createSession.otherModel}</span>
               <input
                 type="text"
                 value={ollamaModel}
@@ -735,14 +736,14 @@ export function CreateSessionDialog({
                 onChange={(event) => setOllamaThinkOff(event.target.checked)}
               />
               <span>
-                <strong>Thinking desligado</strong>
-                Inicia com --think=false para o modelo responder em vez de raciocinar até estourar o contexto.
+                <strong>{msg.createSession.thinkingOff}</strong>
+                {msg.createSession.thinkingOffHint}
               </span>
             </label>
             <span className="create-session-dialog__hint">
               {ollamaModels.length > 0
-                ? "O modelo fica lembrado para a próxima sessão."
-                : "Nenhum modelo listado — confira se o serviço do ollama está no ar ou digite o nome."}
+                ? msg.createSession.modelRemembered
+                : msg.createSession.noModels}
             </span>
           </fieldset>
         )}
@@ -752,8 +753,8 @@ export function CreateSessionDialog({
             agentId="ornith"
             ggufPath={ggufPath}
             onGgufPath={setGgufPath}
-            hardwareDetail="MoE: experts na RAM (--cpu-moe), contexto 16k. O tweet (--n-cpu-moe 24, 170k) estoura VRAM nesta placa. Não copie estes flags para outra GPU."
-            downloadHint={`O GGUF não vai no git — só o caminho nesta máquina. Arquivo típico: ${ORNITH_HF_FILE} (${ORNITH_HF_REPO}).`}
+            hardwareDetail={msg.createSession.ornithHardware}
+            downloadHint={msg.createSession.ggufDownloadHint(ORNITH_HF_FILE, ORNITH_HF_REPO)}
           />
         )}
 
@@ -762,14 +763,14 @@ export function CreateSessionDialog({
             agentId="qwen27"
             ggufPath={ggufPath}
             onGgufPath={setGgufPath}
-            hardwareDetail="27B denso: a placa já está cheia (~6,3 GB). ~4 tok/s com metade das camadas na CPU. Thinking off, mlock. Não use este fit em outra quantidade de VRAM."
-            downloadHint={`O GGUF não vai no git — só o caminho nesta máquina. Arquivo típico: ${QWEN27_HF_FILE}.`}
+            hardwareDetail={msg.createSession.qwenHardware}
+            downloadHint={msg.createSession.ggufDownloadHint(QWEN27_HF_FILE)}
           />
         )}
 
         {agentProfileId === "shell" && isWindowsHost() && (
           <fieldset className="create-session-dialog__fieldset">
-            <legend>Onde abrir</legend>
+            <legend>{msg.createSession.whereToOpen}</legend>
             <div className="create-session-dialog__profiles">
               {["", ...(wslDistros ?? [])].map((distro) => (
                 <button
@@ -790,17 +791,17 @@ export function CreateSessionDialog({
             </div>
             <span className="create-session-dialog__hint">
               {wslDistros === null
-                ? "Procurando distribuições WSL…"
+                ? msg.createSession.searchingWsl
                 : wslDistros.length > 0
-                  ? "A escolha fica lembrada para a próxima sessão."
-                  : "Nenhuma distribuição WSL encontrada — só PowerShell."}
+                  ? msg.createSession.choiceRemembered
+                  : msg.createSession.noWsl}
             </span>
           </fieldset>
         )}
 
         {agentProfileId === "claude" && (
           <fieldset className="create-session-dialog__fieldset">
-            <legend>Perfil Claude</legend>
+            <legend>{msg.createSession.claudeProfile}</legend>
             <div className="create-session-dialog__profiles">
               {claudeAccounts.map((account) => (
                 <button
@@ -817,14 +818,14 @@ export function CreateSessionDialog({
                   <span>{account.name}</span>
                   <small>
                     {account.id === DEFAULT_CLAUDE_ACCOUNT_ID
-                      ? "Perfil inicial (isolado)"
-                      : "Ambiente isolado"}
+                      ? msg.createSession.claudeDefaultProfile
+                      : msg.createSession.claudeIsolatedProfile}
                   </small>
                 </button>
               ))}
             </div>
             <span className="create-session-dialog__hint">
-              O perfil fica lembrado para a próxima sessão.
+              {msg.createSession.profileRemembered}
             </span>
           </fieldset>
         )}
@@ -832,7 +833,7 @@ export function CreateSessionDialog({
 
         <div className="create-session-dialog__actions">
           <button type="button" className="agent-toolbar__button--ghost" onClick={onClose}>
-            Cancelar
+            {msg.createSession.cancel}
           </button>
           <button
             type="button"
@@ -847,7 +848,7 @@ export function CreateSessionDialog({
             onClick={() => void validateAndCreate()}
           >
             <IconPlus size={14} />
-            {creating ? "Criando…" : "Criar sessão"}
+            {creating ? msg.createSession.creating : msg.createSession.create}
           </button>
         </div>
       </div>

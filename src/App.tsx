@@ -25,10 +25,14 @@ import {
   loadRunEverything,
 } from "./core/ui-preferences";
 import type { WorktreeRef } from "./types/session";
+import { msg } from "./i18n";
+import { useLocale } from "./i18n/react";
 
 import "./styles/global.css";
 
 function App() {
+  // Re-renders everything below in place when the language switches.
+  useLocale();
   const sessions = useSessionStore((state) => state.sessions);
   const activeSessionId = useSessionStore((state) => state.activeSessionId);
   const addSession = useSessionStore((state) => state.addSession);
@@ -129,7 +133,7 @@ function App() {
         const message =
           error instanceof Error
             ? error.message
-            : "Falha ao iniciar o Head Terminal";
+            : msg.app.bootFailed;
         setBootstrapError(message);
         setBootstrapped(true);
       }
@@ -184,7 +188,7 @@ function App() {
   if (bootstrapError || sessions.length === 0 || !defaultCwd) {
     return (
       <BootScreen
-        error={bootstrapError ?? "Não foi possível carregar as sessões."}
+        error={bootstrapError ?? msg.app.sessionsLoadFailed}
         showDiagnosticActions
       />
     );

@@ -11,6 +11,7 @@ import { useSessionStore } from "../../core/session-manager";
 import { loadPaneHeadersEnabled } from "../../core/ui-preferences";
 import { getTerminal } from "../../core/terminal-registry";
 import { useAgentSession } from "../../hooks/useAgentSession";
+import { msg } from "../../i18n";
 import { SearchBar } from "./SearchBar";
 import {
   TerminalPaneHeader,
@@ -188,7 +189,7 @@ export function TerminalPane({
           }
           tabIndex={0}
           role="application"
-          aria-label="Terminal do agent"
+          aria-label={msg.terminal.pane.ariaLabel}
           onMouseDown={onFocus}
         />
         <TerminalPaneOverlay

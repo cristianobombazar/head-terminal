@@ -1,5 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 
+import { msg } from "../i18n";
+
 interface ErrorBoundaryProps {
   children: ReactNode;
   onError?: (error: Error, info: ErrorInfo) => void;
@@ -46,7 +48,7 @@ export class ErrorBoundary extends Component<
         }}
       >
         <h1 style={{ color: "#fff", fontSize: "16px", marginBottom: "12px" }}>
-          Head Terminal — erro de renderização
+          {msg.app.renderError.title}
         </h1>
         <button
           type="button"
@@ -67,13 +69,13 @@ export class ErrorBoundary extends Component<
             font: "13px/1.5 monospace",
           }}
         >
-          Tentar novamente
+          {msg.app.renderError.retry}
         </button>
         {"\n"}
         <strong>{error.message}</strong>
         {"\n\n"}
         {error.stack}
-        {info?.componentStack ? `\n\nComponentes:\n${info.componentStack}` : ""}
+        {info?.componentStack ? `\n\n${msg.app.renderError.components}\n${info.componentStack}` : ""}
       </div>
     );
   }

@@ -1,25 +1,59 @@
+import { msg } from "../i18n";
+
 const STAGE_LABELS: Record<string, string> = {
-  "js.main.begin": "Carregando interface",
-  "js.react.root_created": "Preparando React",
-  "js.react.render_committed": "Renderizando",
-  "js.bootstrap.begin": "Iniciando sessões",
-  "js.bootstrap.cwd_ok": "Diretório padrão carregado",
-  "js.bootstrap.workspace_ok": "Sessões restauradas",
-  "js.bootstrap.complete": "Finalizando inicialização",
-  "js.app_shell.visible": "Montando painel principal",
-  "js.session.spawn_scheduled": "Preparando terminal",
-  "js.terminal.dom_opened": "Abrindo terminal",
-  "js.terminal.fit_ok": "Ajustando terminal",
-  "js.pty.spawn_begin": "Iniciando agent",
-  "js.pty.spawn_ok": "Agent em execução",
-  "js.pty.first_byte": "Recebendo saída",
-  "ui.ready": "Pronto",
-  "watchdog.3s": "Verificando inicialização",
+  get "js.main.begin"() {
+    return msg.core.startup.loadingInterface;
+  },
+  get "js.react.root_created"() {
+    return msg.core.startup.preparingReact;
+  },
+  get "js.react.render_committed"() {
+    return msg.core.startup.rendering;
+  },
+  get "js.bootstrap.begin"() {
+    return msg.core.startup.startingSessions;
+  },
+  get "js.bootstrap.cwd_ok"() {
+    return msg.core.startup.defaultFolderLoaded;
+  },
+  get "js.bootstrap.workspace_ok"() {
+    return msg.core.startup.sessionsRestored;
+  },
+  get "js.bootstrap.complete"() {
+    return msg.core.startup.finishing;
+  },
+  get "js.app_shell.visible"() {
+    return msg.core.startup.mountingShell;
+  },
+  get "js.session.spawn_scheduled"() {
+    return msg.core.startup.preparingTerminal;
+  },
+  get "js.terminal.dom_opened"() {
+    return msg.core.startup.openingTerminal;
+  },
+  get "js.terminal.fit_ok"() {
+    return msg.core.startup.fittingTerminal;
+  },
+  get "js.pty.spawn_begin"() {
+    return msg.core.startup.startingAgent;
+  },
+  get "js.pty.spawn_ok"() {
+    return msg.core.startup.agentRunning;
+  },
+  get "js.pty.first_byte"() {
+    return msg.core.startup.receivingOutput;
+  },
+  get "ui.ready"() {
+    return msg.core.startup.ready;
+  },
+  get "watchdog.3s"() {
+    return msg.core.startup.checkingStartup;
+  },
 };
 
 export function humanizeCheckpoint(stage: string | null): string {
   if (!stage) {
-    return "Iniciando…";
+    return msg.core.startup.starting;
   }
   return STAGE_LABELS[stage] ?? stage;
 }

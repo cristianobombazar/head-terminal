@@ -19,6 +19,7 @@ import {
 import { resolveClaudeConfigDir } from "./claude-accounts";
 import { pickGitContextForSession } from "./git-context-utils";
 import { logEvent } from "./logger";
+import { msg } from "../i18n";
 import { hasOpenAiApiKey } from "./openai-credentials";
 import { basenamePath } from "./path-utils";
 import { useSessionStore } from "./session-manager";
@@ -332,7 +333,7 @@ function resolvePaneContext(paneId: string): PaneContext {
   const session = state.sessions.find((candidate) =>
     collectPaneIds(candidate.layout).includes(paneId),
   );
-  if (!session) throw new Error("Terminal não encontrado.");
+  if (!session) throw new Error(msg.brainstorm.errors.paneNotFound);
 
   const profile = session.agentProfileId;
   const agent =
@@ -380,7 +381,7 @@ function waitForIceGathering(pc: RTCPeerConnection): Promise<void> {
 function waitForSessionStart(connection: LiveConnection): Promise<void> {
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(
-      () => reject(new Error("A OpenAI não iniciou a conversa a tempo.")),
+      () => reject(new Error(msg.brainstorm.errors.sessionStartTimeout)),
       SESSION_START_TIMEOUT_MS,
     );
     connection.onSessionStarted = () => {
@@ -396,15 +397,15 @@ function closeReasonMessage(reason: unknown): string | null {
     case "close_requested":
       return null;
     case "expired":
-      return "A conversa atingiu o tempo máximo de uma sessão de voz.";
+      return msg.brainstorm.errors.sessionExpired;
     case "connection_lost":
-      return "A conexão de voz caiu.";
+      return msg.brainstorm.errors.connectionLost;
     case "content":
-      return "A OpenAI encerrou a conversa pela política de conteúdo.";
+      return msg.brainstorm.errors.endedByContentPolicy;
     case "remote_hangup":
-      return "A OpenAI encerrou a conversa.";
+      return msg.brainstorm.errors.endedByOpenAi;
     default:
-      return `Conversa encerrada (${String(reason)}).`;
+      return msg.brainstorm.errors.endedOther(String(reason));
   }
 }
 
@@ -504,7 +505,7 @@ function endBrainstorm(bs: Brainstorm, error: string | null): void {
     void window.headTerminal.live.cancelDelegation(task.id).catch(() => undefined);
     updateTask(task.id, {
       status: "cancelled",
-      error: "Cancelada: a conversa terminou.",
+      error: msg.brainstorm.errors.cancelledByEnd,
       finishedAt: Date.now(),
     });
   }
@@ -689,7 +690,7 @@ async function delegate(bs: Brainstorm, connection: LiveConnection, delegationId
     void window.headTerminal.live.cancelDelegation(previous).catch(() => undefined);
     updateTask(previous, {
       status: "cancelled",
-      error: "Substituída pelo pedido seguinte.",
+      error: msg.brainstorm.errors.replacedByNext,
       finishedAt: Date.now(),
     });
     append(
@@ -966,9 +967,7 @@ async function openVoice(bs: Brainstorm, options: OpenOptions): Promise<boolean>
     const denied = (error as DOMException)?.name === "NotAllowedError";
     endBrainstorm(
       bs,
-      denied
-        ? "Acesso ao microfone negado. Libere o microfone para o aplicativo nas configurações do sistema."
-        : "Não foi possível abrir o microfone.",
+      denied ? msg.brainstorm.errors.microphoneDenied : msg.brainstorm.errors.microphoneUnavailable,
     );
     return false;
   }
@@ -1014,7 +1013,7 @@ async function openVoice(bs: Brainstorm, options: OpenOptions): Promise<boolean>
   for (const track of stream.getAudioTracks()) pc.addTrack(track, stream);
   channel.onmessage = (event) => handleServerEvent(bs, connection, event.data);
   pc.onconnectionstatechange = () => {
-    if (pc.connectionState === "failed") onSessionLost(bs, connection, "A conexão de voz caiu.");
+    if (pc.connectionState === "failed") onSessionLost(bs, connection, msg.brainstorm.errors.connectionLost);
   };
 
   try {
@@ -1024,7 +1023,7 @@ async function openVoice(bs: Brainstorm, options: OpenOptions): Promise<boolean>
     await pc.setLocalDescription(await pc.createOffer());
     await waitForIceGathering(pc);
     const offer = pc.localDescription?.sdp;
-    if (!offer) throw new Error("Não foi possível preparar a conexão de voz.");
+    if (!offer) throw new Error(msg.brainstorm.errors.connectionSetupFailed);
 
     const paneConversation = paneConversationOf(bs);
     const answer = await window.headTerminal.live.createSession({
@@ -1135,7 +1134,7 @@ export async function startBrainstorm(paneId: string): Promise<void> {
   logEvent("info", "brainstorm.start", { paneId, agent: context.agent, branch: context.branch });
 
   if (!(await hasOpenAiApiKey())) {
-    fail("Configure sua chave da OpenAI nas Configurações.");
+    fail(msg.brainstorm.errors.missingApiKey);
     return;
   }
 
@@ -1254,7 +1253,7 @@ export function cancelBrainstormTask(taskId: string): void {
   void window.headTerminal.live.cancelDelegation(taskId).catch(() => undefined);
   updateTask(taskId, {
     status: "cancelled",
-    error: "Cancelada pelo usuário.",
+    error: msg.brainstorm.errors.cancelledByUser,
     finishedAt: Date.now(),
   });
   if (!bs) return;
@@ -1277,7 +1276,7 @@ export function attachBrainstormImage(path: string): boolean {
   const { attachments } = useBrainstormStore.getState();
   if (!bs || !path || attachments.includes(path)) return false;
   if (attachments.length >= MAX_ATTACHMENTS) {
-    flashError(`No máximo ${MAX_ATTACHMENTS} imagens por análise.`);
+    flashError(msg.brainstorm.errors.tooManyImages(MAX_ATTACHMENTS));
     return false;
   }
   useBrainstormStore.setState({ attachments: [...attachments, path] });
@@ -1297,7 +1296,7 @@ export async function attachBrainstormClipboardImage(): Promise<boolean> {
   try {
     const path = await window.headTerminal.clipboard.saveImage();
     if (!path) {
-      flashError("A área de transferência não tem uma imagem.");
+      flashError(msg.brainstorm.errors.noClipboardImage);
       return false;
     }
     return attachBrainstormImage(path);

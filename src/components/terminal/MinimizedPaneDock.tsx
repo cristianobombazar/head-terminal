@@ -8,6 +8,7 @@ import { resolvePaneCwd } from "../../core/session-layout";
 import { useSessionStore } from "../../core/session-manager";
 import { formatShortcut } from "../../core/shortcuts";
 import { usePaneConversation } from "../../hooks/usePaneConversation";
+import { msg } from "../../i18n";
 import type { AgentSession } from "../../types/session";
 import {
   IconCheck,
@@ -50,22 +51,24 @@ export function MinimizedPaneDock({
 
   if (variant === "stage") {
     return (
-      <section className="minimized-stage" aria-label="Terminais minimizados">
+      <section className="minimized-stage" aria-label={msg.terminal.dock.ariaLabel}>
         <div className="minimized-stage__heading">
           <span className="minimized-stage__title">
             {paneIds.length === 1
-              ? "Terminal minimizado"
-              : `${paneIds.length} terminais minimizados`}
+              ? msg.terminal.dock.titleOne
+              : msg.terminal.dock.titleMany(paneIds.length)}
           </span>
           {paneIds.length === 1 ? (
             <span className="minimized-stage__hint">
-              O agent segue rodando. Clique no card ou use{" "}
-              <kbd>{formatShortcut("Ctrl+Shift+M")}</kbd> para restaurar.
+              {msg.terminal.dock.hintOneBefore}
+              <kbd>{formatShortcut("Ctrl+Shift+M")}</kbd>
+              {msg.terminal.dock.hintOneAfter}
             </span>
           ) : (
             <span className="minimized-stage__hint">
-              Os agents seguem rodando. Clique num card para restaurar —{" "}
-              <kbd>{formatShortcut("Ctrl+Shift+M")}</kbd> traz o último.
+              {msg.terminal.dock.hintManyBefore}
+              <kbd>{formatShortcut("Ctrl+Shift+M")}</kbd>
+              {msg.terminal.dock.hintManyAfter}
             </span>
           )}
         </div>
@@ -75,7 +78,7 @@ export function MinimizedPaneDock({
   }
 
   return (
-    <section className="minimized-dock" aria-label="Terminais minimizados">
+    <section className="minimized-dock" aria-label={msg.terminal.dock.ariaLabel}>
       {cards}
     </section>
   );
@@ -155,8 +158,8 @@ function MinimizedPaneCard({
       type="button"
       className={classes}
       data-minimized-pane={paneId}
-      title={`${shortLabel} · ${name} — ${statusText}. Clique para restaurar.`}
-      aria-label={`Restaurar ${shortLabel} (${statusText})`}
+      title={msg.terminal.dock.cardHint(shortLabel, name, statusText)}
+      aria-label={msg.terminal.dock.cardAria(shortLabel, statusText)}
       onClick={() => restorePaneWithMotion(paneId)}
     >
       {/* Same tinted chip as the pane header, so the card reads as that terminal. */}

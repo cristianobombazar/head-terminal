@@ -703,6 +703,11 @@
   width: 130px;
 }
 
+/* Room for "Automatic — Português (Brasil)" */
+.settings-row select.settings-select--wide {
+  width: 230px;
+}
+
 .settings-row input[type="checkbox"] {
   width: 16px;
   height: 16px;

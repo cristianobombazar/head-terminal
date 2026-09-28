@@ -5,6 +5,7 @@ import type {
 } from "../types/api";
 import { runCommand } from "./command-runner";
 import { UNIX_USER_BIN_PATH_EXPORT } from "../../src/core/unix-cli-probe";
+import { msg } from "../../src/i18n";
 
 const DEFAULT_TIMEOUT_MS = 10_000;
 const DEFAULT_CACHE_TTL_MS = 5 * 60 * 1_000;
@@ -96,7 +97,7 @@ export class McpService {
 
   async list(cwd: string, agent: SupportedAgent): Promise<McpServersPayload> {
     if (!cwd || cwd.includes("\0")) {
-      return { servers: [], error: "Diretório inválido" };
+      return { servers: [], error: msg.main.paths.invalidDirectory };
     }
 
     const key = `${agent}:${cwd}`;
@@ -122,10 +123,10 @@ export class McpService {
       payload = {
         servers: [],
         error: processError.code === "ENOENT"
-          ? `CLI '${binary}' não encontrada`
+          ? msg.main.mcp.cliNotFound(binary)
           : timedOut
             ? `Tempo limite excedido ao consultar '${binary}'`
-            : stderr || processError.message || `Falha ao consultar '${binary}'`,
+            : stderr || processError.message || msg.main.mcp.queryFailed(binary),
       };
     }
 

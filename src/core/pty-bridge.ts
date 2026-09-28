@@ -1,3 +1,4 @@
+import type { RunningAgent } from "../../electron/types/api";
 import type { AgentProfile } from "../config/agents";
 import { buildPtyEnv } from "./pty-env";
 import { createQueuedPtyWriter } from "./pty-write-queue";
@@ -27,6 +28,7 @@ export interface ElectronPty {
   kill(): void | Promise<void>;
   onData(callback: (data: Uint8Array) => void): IDisposable;
   onExit(callback: (event: { exitCode: number }) => void): IDisposable;
+  onAgent(callback: (agent: RunningAgent | null) => void): IDisposable;
 }
 
 const encoder = new TextEncoder();
@@ -81,6 +83,12 @@ export async function createPtyBridge(
       });
       return { dispose: unsubscribe };
     },
+    onAgent: (callback) => {
+      const unsubscribe = window.headTerminal.terminal.onAgent((event) => {
+        if (event.id === id) callback(event.agent);
+      });
+      return { dispose: unsubscribe };
+    },
   };
 
   const write = createQueuedPtyWriter((data) => {
@@ -118,4 +126,11 @@ export function attachPtyExitListener(
   onExit: (exitCode: number) => void,
 ): IDisposable {
   return pty.onExit(({ exitCode }) => onExit(exitCode));
+}
+
+export function attachPtyAgentListener(
+  pty: ElectronPty,
+  onAgent: (agent: RunningAgent | null) => void,
+): IDisposable {
+  return pty.onAgent(onAgent);
 }

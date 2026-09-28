@@ -84,6 +84,14 @@ describe("formatTranscript", () => {
     );
   });
 
+  it("takes the caller's speaker labels for the copy the user keeps", () => {
+    expect(
+      formatTranscript(turns, { speakers: { user: "User", assistant: "Voice assistant" } }),
+    ).toBe(
+      "User: olha o upload\nVoice assistant: Vou pedir para checar.\nUser: e o download também",
+    );
+  });
+
   it("keeps only what was said since a timeline point", () => {
     expect(formatTranscript(turns, { sinceMs: 2_000 })).toBe(
       "Assistente de voz: Vou pedir para checar.\nUsuário: e o download também",

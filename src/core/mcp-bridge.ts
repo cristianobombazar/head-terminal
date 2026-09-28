@@ -1,3 +1,5 @@
+import { msg } from "../i18n";
+
 export interface McpServerStatus {
   name: string;
   target: string;
@@ -34,7 +36,7 @@ export async function fetchMcpServers(
   }
 
   if (agent !== "claude" && agent !== "cursor") {
-    return { servers: [], error: "Agent não suportado" };
+    return { servers: [], error: msg.core.mcp.unsupportedAgent };
   }
   const payload = await window.headTerminal.mcp.list(cwd, agent);
   mcpServersCache.set(key, {

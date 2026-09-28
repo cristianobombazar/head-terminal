@@ -1,5 +1,6 @@
 import { create } from "zustand";
 
+import type { RunningAgent } from "../../electron/types/api";
 import type { PaneActivity } from "../types/activity";
 import {
   closePaneInLayout,
@@ -45,6 +46,9 @@ export interface PaneRuntime {
   /** The "waiting_input" is an approval prompt, not the agent back at its
    * own prompt (see ActivityDetector). */
   awaitingApproval?: boolean;
+  /** An agent CLI the user started inside this pane — `claude` typed in a
+   * shell — for as long as it runs. Never persisted. */
+  runningAgent?: RunningAgent;
 }
 
 /** Custom conversation names are keyed by CLI session id, and those ids are
@@ -194,6 +198,7 @@ interface SessionStore {
   updatePaneActivity: (paneId: string, activity: PaneActivity) => void;
   updatePaneContext: (paneId: string, contextPercent: number) => void;
   updatePaneApproval: (paneId: string, awaitingApproval: boolean) => void;
+  updatePaneRunningAgent: (paneId: string, agent: RunningAgent | null) => void;
   registerPtyWriter: (paneId: string, write: (data: string) => void) => void;
   unregisterPtyWriter: (paneId: string) => void;
   setVoiceRecordingPaneId: (paneId: string | null) => void;
@@ -353,6 +358,7 @@ function resetPaneRuntime(
       activity: "starting",
       activitySince: Date.now(),
       awaitingApproval: false,
+      runningAgent: undefined,
     },
   };
 }
@@ -1266,6 +1272,22 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         paneRuntime: {
           ...state.paneRuntime,
           [paneId]: { ...current, awaitingApproval },
+        },
+      };
+    }),
+
+  updatePaneRunningAgent: (paneId, agent) =>
+    set((state) => {
+      const current = state.paneRuntime[paneId];
+      const runningAgent = agent ?? undefined;
+      if (!current || current.runningAgent === runningAgent) {
+        return state;
+      }
+
+      return {
+        paneRuntime: {
+          ...state.paneRuntime,
+          [paneId]: { ...current, runningAgent },
         },
       };
     }),

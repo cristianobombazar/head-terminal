@@ -55,6 +55,17 @@ import {
 } from "../../src/config/agents-shared";
 import { unsupported } from "./errors";
 import {
+  chooseLocale,
+  isLanguagePreference,
+  resolveLocale,
+  type Locale,
+} from "../../src/i18n/locale";
+import {
+  readLanguagePreference,
+  writeLanguagePreference,
+} from "../services/language-preference";
+import { systemLanguages } from "../system-languages";
+import {
   asBoolean,
   asRecord,
   asString,
@@ -169,6 +180,8 @@ export interface RegisterIpcOptions {
   services?: IpcServices;
   isQuitting?: () => boolean;
   runId?: string;
+  /** Main's side of a language switch picked in Settings (menu, dialogs). */
+  onLocaleChange?: (locale: Locale) => void;
 }
 
 let removeCurrentHandlers: (() => void) | null = null;
@@ -178,6 +191,7 @@ export function registerIpc({
   services = {},
   isQuitting = () => false,
   runId = "main-process",
+  onLocaleChange,
 }: RegisterIpcOptions): () => void {
   removeCurrentHandlers?.();
 
@@ -228,7 +242,20 @@ export function registerIpc({
     platform: process.platform,
     version: app.getVersion(),
     userDataPath: app.getPath("userData"),
+    languagePreference: readLanguagePreference(app.getPath("userData")),
+    systemLocale: resolveLocale(systemLanguages()),
   }));
+  // Saved for the next start and applied now: main switches here, the
+  // renderer switches to the language this returns.
+  handle(IPC_CHANNELS.app.setLanguage, async (_event, value): Promise<Locale> => {
+    if (!isLanguagePreference(value)) {
+      throw new TypeError("language must be auto, pt-BR or en");
+    }
+    await writeLanguagePreference(app.getPath("userData"), value);
+    const next = chooseLocale(value, systemLanguages());
+    onLocaleChange?.(next);
+    return next;
+  });
   handle(IPC_CHANNELS.app.setTitle, (_event, value) => {
     window.setTitle(asString(value, "title", { maxLength: 256 }));
   });
