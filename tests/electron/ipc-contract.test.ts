@@ -173,7 +173,7 @@ describe("Electron IPC contract", () => {
     const channels = flattenChannels(IPC_CHANNELS);
 
     expect(new Set(channels).size).toBe(channels.length);
-    expect(channels).toHaveLength(68);
+    expect(channels).toHaveLength(69);
     expect(channels.every((channel) => /^[a-z][a-z-]*:[a-z][a-z-]*$/.test(channel))).toBe(true);
   });
 
@@ -315,6 +315,36 @@ describe("Electron IPC contract", () => {
       ).toBeNull();
     }
     expect(getClaudeSettings).not.toHaveBeenCalled();
+  });
+
+  it("reads Claude usage by profile id only, never by path", async () => {
+    const harness = fakeWindow();
+    const get = vi.fn(async () => []);
+    registerIpc({ window: harness.window, services: { claudeUsage: { get } } });
+    const profile = "5f1bd932-f0a4-449b-89fb-85ec4f2d32dc";
+
+    await invoke(IPC_CHANNELS.claudeUsage.get, harness.trustedEvent, ["default", profile], [profile]);
+    expect(get).toHaveBeenCalledWith(["default", profile], [profile]);
+
+    await invoke(IPC_CHANNELS.claudeUsage.get, harness.trustedEvent, [profile]);
+    expect(get).toHaveBeenLastCalledWith([profile], []);
+
+    for (const ids of [
+      "default",
+      ["../../.ssh"],
+      ["C:\\Users\\x\\.claude"],
+      [42],
+      Array.from({ length: 65 }, () => "default"),
+    ]) {
+      expect(() => invoke(IPC_CHANNELS.claudeUsage.get, harness.trustedEvent, ids)).toThrow(
+        /profileIds/,
+      );
+    }
+    expect(() =>
+      invoke(IPC_CHANNELS.claudeUsage.get, harness.trustedEvent, [profile], ["/etc"]),
+    ).toThrow(/refresh/);
+    expect(() => invoke(IPC_CHANNELS.claudeUsage.get, harness.foreignEvent, [profile])).toThrow();
+    expect(get).toHaveBeenCalledTimes(2);
   });
 
   it("forwards hook events to the window and stops when unregistered", () => {

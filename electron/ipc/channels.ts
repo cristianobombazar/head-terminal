@@ -66,6 +66,7 @@ export const IPC_CHANNELS = {
     endRequested: "live:end-requested",
   },
   mcp: { list: "mcp:list" },
+  claudeUsage: { get: "claude-usage:get" },
   sessions: { listResumable: "sessions:list-resumable" },
   clipboard: {
     readText: "clipboard:read-text",

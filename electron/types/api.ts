@@ -164,6 +164,52 @@ export interface ResourceUsage {
   disk: DiskUsage | null;
 }
 
+/** One rate-limit window of a Claude subscription, as `/usage` shows it. */
+export interface ClaudeUsageWindow {
+  /** Share of the window already used, 0-100. */
+  percent: number;
+  /** When the window starts over (epoch ms); null while no window is open —
+   * the five-hour one only starts with the next message. */
+  resetsAt: number | null;
+}
+
+/** A weekly window that only counts one model or surface ("Fable"). */
+export interface ClaudeUsageScopedWindow extends ClaudeUsageWindow {
+  label: string;
+}
+
+/**
+ * Why the numbers are old or missing: the access token expired while no
+ * Claude ran to renew it, was refused, the endpoint throttled us, the
+ * network failed, or the profile has no token this app can read.
+ */
+export type ClaudeUsageProblem =
+  | "expired"
+  | "auth"
+  | "rate-limited"
+  | "network"
+  | "no-token";
+
+export interface ClaudeAccountUsage {
+  /** Stable id of the account (not the account's own uuid). */
+  key: string;
+  /** Profiles signed in to this account, in the order they were asked for.
+   * Limits belong to the account, so two profiles on it share one entry. */
+  profileIds: string[];
+  /** `signed-out`: no account on the profile. `unavailable`: never read.
+   * `stale`: numbers from an earlier read that could not be renewed. */
+  status: "ok" | "stale" | "signed-out" | "unavailable";
+  problem?: ClaudeUsageProblem;
+  /** "Pro", "Max 5x", "Team"… */
+  plan?: string;
+  fiveHour: ClaudeUsageWindow | null;
+  sevenDay: ClaudeUsageWindow | null;
+  /** Weekly windows scoped to one model, when the plan has them. */
+  scoped: ClaudeUsageScopedWindow[];
+  /** When the numbers were read (epoch ms). */
+  fetchedAt?: number;
+}
+
 /** Agent CLIs a voice brainstorm can hand code questions to. */
 export type BrainstormAgent = "claude" | "codex" | "cursor";
 
@@ -437,6 +483,14 @@ export interface HeadTerminalApi {
   };
   mcp: {
     list(cwd: string, agent: SupportedAgent): Promise<McpServersPayload>;
+  };
+  claudeUsage: {
+    /**
+     * Five-hour and weekly limits of the accounts behind these Claude
+     * profiles, one entry per account. Served from memory while fresh; the
+     * profiles in `refresh` are read again unless they just were.
+     */
+    get(profileIds: string[], refresh?: string[]): Promise<ClaudeAccountUsage[]>;
   };
   sessions: {
     listResumable(

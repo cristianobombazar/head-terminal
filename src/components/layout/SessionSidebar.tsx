@@ -68,6 +68,7 @@ import {
   IconSidebarExpand,
 } from "../ui/Icons";
 import { StatusDot, useTerminalStatusCounts } from "../ui/StatusDot";
+import { ClaudeUsageMeter } from "./ClaudeUsageMeter";
 import { SessionContextMenu } from "./SessionContextMenu";
 import { SystemResourceMeter } from "./SystemResourceMeter";
 
@@ -489,10 +490,8 @@ export function SessionSidebar({
     y: number;
   } | null>(null);
   const activeSessionId = useSessionStore((state) => state.activeSessionId);
-  const accountOptions = claudeAccountFilterOptions(
-    sessions,
-    loadClaudeAccountProfiles(),
-  );
+  const claudeProfiles = loadClaudeAccountProfiles();
+  const accountOptions = claudeAccountFilterOptions(sessions, claudeProfiles);
   // O filtro só vale enquanto os chips estão na tela: recolhido, ou com um
   // perfil só, a lista nunca esconde sessões sem mostrar por quê.
   const showAccountFilter = !collapsed && accountOptions.length > 1;
@@ -728,6 +727,12 @@ export function SessionSidebar({
             <IconPlus size={16} />
           </button>
         )}
+        <ClaudeUsageMeter
+          sessions={sessions}
+          profiles={claudeProfiles}
+          collapsed={collapsed}
+          accountFilter={activeAccountFilter}
+        />
         <SystemResourceMeter collapsed={collapsed} />
       </div>
 

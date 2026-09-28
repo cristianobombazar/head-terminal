@@ -169,6 +169,10 @@ const api: HeadTerminalApi = {
   mcp: {
     list: (cwd, agent) => ipcRenderer.invoke(IPC_CHANNELS.mcp.list, cwd, agent),
   },
+  claudeUsage: {
+    get: (profileIds, refresh = []) =>
+      ipcRenderer.invoke(IPC_CHANNELS.claudeUsage.get, profileIds, refresh),
+  },
   sessions: {
     listResumable: (cwd, agent, claudeConfigDir) =>
       ipcRenderer.invoke(

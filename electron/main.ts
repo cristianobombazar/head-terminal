@@ -8,6 +8,7 @@ import {
   BrowserWindow,
   dialog,
   Menu,
+  net,
   safeStorage,
   session,
   shell,
@@ -46,6 +47,7 @@ import { PtyService, type PtyServiceEvent } from "./services/pty-service";
 import { readLanguagePreference } from "./services/language-preference";
 import { systemLanguages } from "./system-languages";
 import { getResourceUsage } from "./services/resource-usage-service";
+import { ClaudeUsageService } from "./services/claude-usage-service";
 import { SecretService } from "./services/secret-service";
 import * as systemService from "./services/system-service";
 import { ensureAgentClis } from "./services/agent-cli-install-service";
@@ -377,6 +379,12 @@ async function createServices(): Promise<{
   const voice = new VoiceService({ secrets });
   const live = new LiveBrainstormService({ secrets, homeDir: systemService.getHome() });
   const mcp = new McpService();
+  const claudeUsage = new ClaudeUsageService({
+    home: () => systemService.getHome(),
+    // net.fetch goes through the system proxy, like the rest of Chromium.
+    fetch: (url, init) => net.fetch(url, init),
+    userAgent: `HeadTerminal/${app.getVersion()}`,
+  });
   const agentHooks = new AgentHookServer({
     userDataPath,
     log(event, meta) {
@@ -457,6 +465,7 @@ async function createServices(): Promise<{
     voice,
     live,
     mcp,
+    claudeUsage,
     sessions: {
       listResumable: (cwd, agent, claudeConfigDir) =>
         listResumableSessions(cwd, agent, claudeConfigDir, agentSessionRoots),

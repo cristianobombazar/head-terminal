@@ -3,6 +3,7 @@ import type { AgentHookEvent } from "../types/agent-hooks";
 type Listener = (event: AgentHookEvent) => void;
 
 const listeners = new Map<string, Set<Listener>>();
+const anyPaneListeners = new Set<Listener>();
 let unsubscribeIpc: (() => void) | null = null;
 
 function hooksApi() {
@@ -18,7 +19,8 @@ function ensureIpcSubscription(): void {
     return;
   }
   unsubscribeIpc = api.onEvent((event) => {
-    listeners.get(event.paneId)?.forEach((listener) => {
+    const paneListeners = listeners.get(event.paneId) ?? [];
+    [...paneListeners, ...anyPaneListeners].forEach((listener) => {
       // One pane's broken listener must not starve the others of the event.
       try {
         listener(event);
@@ -51,6 +53,15 @@ export function subscribeAgentHookEvents(paneId: string, listener: Listener): ()
   };
 }
 
+/** Hook events of every pane, for what spans panes (the account usage). */
+export function subscribeAllAgentHookEvents(listener: Listener): () => void {
+  ensureIpcSubscription();
+  anyPaneListeners.add(listener);
+  return () => {
+    anyPaneListeners.delete(listener);
+  };
+}
+
 /**
  * The `--settings` file a Claude pane is launched with so it reports its own
  * state. One file per pane, asked on every spawn: the main process makes sure
@@ -73,4 +84,5 @@ export function resetAgentHooksBridgeForTests(): void {
   unsubscribeIpc?.();
   unsubscribeIpc = null;
   listeners.clear();
+  anyPaneListeners.clear();
 }

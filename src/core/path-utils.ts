@@ -1,4 +1,7 @@
+import { isWindowsPath, joinPath } from "./path-join";
 import { isMacHost, isWindowsHost } from "./platform-info";
+
+export { isWindowsPath, joinPath };
 
 export function truncatePathMiddle(path: string, maxLength = 28): string {
   if (path.length <= maxLength) {
@@ -26,26 +29,13 @@ export function samePath(a: string, b: string): boolean {
   return normalize(a) === normalize(b);
 }
 
-const WINDOWS_DRIVE = /^[A-Za-z]:(?:[\\/]|$)/u;
 const WSL_MOUNT = /^\/mnt\/([a-z])(?:\/(.*))?$/iu;
-
-/** `C:\x`, `C:/x` or a UNC `\\server\share`. */
-export function isWindowsPath(path: string): boolean {
-  return WINDOWS_DRIVE.test(path) || path.startsWith("\\\\");
-}
 
 /** Last segment of a path spelled with either separator. */
 export function basenamePath(path: string, fallback = ""): string {
   const normalized = path.replace(/[\\/]+$/u, "");
   const parts = normalized.split(/[\\/]/u);
   return parts[parts.length - 1] || fallback;
-}
-
-/** Joins with the separator the base already uses, so a Windows base stays Windows. */
-export function joinPath(base: string, ...segments: string[]): string {
-  const separator = isWindowsPath(base) ? "\\" : "/";
-  const root = base.replace(/[\\/]+$/u, "");
-  return [root, ...segments].join(separator);
 }
 
 /**

@@ -5,6 +5,7 @@ import {
   getClaudeHookSettingsPath,
   resetAgentHooksBridgeForTests,
   subscribeAgentHookEvents,
+  subscribeAllAgentHookEvents,
 } from "./agent-hooks-bridge";
 
 const PANE_A = "0d4c9a51-7f39-4a8e-9b0e-2d6f1c3e5a77";
@@ -75,6 +76,23 @@ describe("agent hook events", () => {
     subscribeAgentHookEvents(PANE_A, after);
     expect(() => emit?.(hookEvent(PANE_A))).not.toThrow();
     expect(after).toHaveBeenCalledOnce();
+  });
+
+  it("hands every pane's events to an all-panes listener, over the same subscription", () => {
+    const pane = vi.fn();
+    const all = vi.fn();
+    subscribeAgentHookEvents(PANE_A, pane);
+    const unsubscribeAll = subscribeAllAgentHookEvents(all);
+    expect(onEvent).toHaveBeenCalledOnce();
+
+    emit?.(hookEvent(PANE_A));
+    emit?.(hookEvent(PANE_B, "StopFailure"));
+    expect(pane).toHaveBeenCalledOnce();
+    expect(all.mock.calls).toEqual([[hookEvent(PANE_A)], [hookEvent(PANE_B, "StopFailure")]]);
+
+    unsubscribeAll();
+    emit?.(hookEvent(PANE_B));
+    expect(all).toHaveBeenCalledTimes(2);
   });
 
   it("works without the preload API (tests, a stale renderer) and drops the IPC on reset", () => {

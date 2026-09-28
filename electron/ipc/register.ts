@@ -15,6 +15,7 @@ import type {
   AllowedSecretKey,
   BrainstormAgent,
   CheckpointInput,
+  ClaudeAccountUsage,
   ClaudeHookSettings,
   ConfirmInput,
   GitChangedEvent,
@@ -57,7 +58,7 @@ import {
   WSL_SHELL_COMMAND,
 } from "../../src/config/agents-shared";
 import { AGENT_HOOK_PANE_ENV, AGENT_HOOK_PANE_ID } from "../../src/types/agent-hooks";
-import { unsupported } from "./errors";
+import { IpcError, unsupported } from "./errors";
 import {
   chooseLocale,
   isLanguagePreference,
@@ -79,6 +80,7 @@ import {
 import { isPersistedWorkspace } from "../services/workspace-service";
 import { ClipboardPasteService } from "../services/clipboard-paste-service";
 import { AGENT_SESSION_ID_PATTERN } from "../services/live-brainstorm-service";
+import { CLAUDE_PROFILE_ID } from "../services/claude-usage-service";
 
 export interface IpcServices {
   terminal?: {
@@ -152,6 +154,9 @@ export interface IpcServices {
   };
   mcp?: {
     list(cwd: string, agent: SupportedAgent): Promise<McpServersPayload>;
+  };
+  claudeUsage?: {
+    get(profileIds: string[], refresh: string[]): Promise<ClaudeAccountUsage[]>;
   };
   sessions?: {
     listResumable(
@@ -494,6 +499,12 @@ export function registerIpc({
       validateAgent(agent),
     ) ?? unsupported("mcp.list"),
   );
+  handle(IPC_CHANNELS.claudeUsage.get, (_event, profileIds, refresh) =>
+    services.claudeUsage?.get(
+      validateClaudeProfileIds(profileIds, "profileIds"),
+      validateClaudeProfileIds(refresh, "refresh"),
+    ) ?? unsupported("claudeUsage.get"),
+  );
   handle(IPC_CHANNELS.sessions.listResumable, (_event, cwd, agent, claudeConfigDir) =>
     services.sessions?.listResumable(
       asString(cwd, "cwd", { maxLength: 16_384 }),
@@ -810,6 +821,18 @@ function validateAgent(value: unknown): SupportedAgent {
     throw new TypeError("agent must be claude or cursor");
   }
   return value;
+}
+
+/** Profile ids, never paths: main builds each profile's directory itself,
+ * so the renderer cannot point the usage read at another folder. */
+function validateClaudeProfileIds(value: unknown, field: string): string[] {
+  const ids = asStringArray(value, field, { maxLength: 64, maxItems: 64 });
+  for (const id of ids) {
+    if (!CLAUDE_PROFILE_ID.test(id)) {
+      throw new IpcError("INVALID_INPUT", `${field} holds an invalid profile id`);
+    }
+  }
+  return ids;
 }
 
 function validateResumableAgent(value: unknown): ResumableAgent {
