@@ -15,7 +15,9 @@ export interface ClaudeAccountFilterOption {
  * Claude and so has none. A Claude session without `claudeAccountId` runs on
  * the default profile.
  */
-export function sessionClaudeAccountId(session: AgentSession): string | null {
+export function sessionClaudeAccountId(
+  session: Pick<AgentSession, "agentProfileId" | "claudeAccountId">,
+): string | null {
   if (session.agentProfileId !== "claude") {
     return null;
   }

@@ -320,39 +320,69 @@
   line-height: 1;
 }
 
-/* Footer: limites de 5h e da semana de cada conta Claude */
+/* Footer: limites do plano do agent da sessão aberta */
 
-.claude-usage {
+.usage-meter {
   display: flex;
   flex-direction: column;
   gap: 7px;
-  padding: 6px 8px 8px;
+  padding: 7px 8px 8px;
   border-radius: var(--radius-sm);
   background: var(--bg-1);
 }
 
-.claude-usage__header {
+.usage-meter__head {
   display: flex;
   align-items: center;
-  gap: 5px;
-  min-height: 14px;
+  gap: 6px;
+  min-width: 0;
+  min-height: 16px;
   font-size: var(--font-xs);
-  line-height: 1;
+  line-height: 1.2;
+}
+
+.usage-meter__icon {
+  flex: 0 0 auto;
   color: var(--text-muted);
 }
 
-.claude-usage__title {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
+.usage-meter__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-primary);
   font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+}
+
+.usage-meter__plan {
+  flex: 0 0 auto;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.usage-meter__flag {
+  flex: 0 0 auto;
+  color: var(--status-fallback);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.usage-meter__alert {
+  flex: 0 0 auto;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 /* Aparece com o mouse no bloco (ou no foco do teclado): o número já se
    atualiza sozinho, o botão é para quando não dá para esperar. */
-.claude-usage__refresh {
+.usage-meter__refresh {
+  flex: 0 0 auto;
   margin-left: auto;
   display: inline-flex;
   align-items: center;
@@ -373,113 +403,64 @@
     background var(--transition-fast);
 }
 
-.claude-usage:hover .claude-usage__refresh,
-.claude-usage__refresh:focus-visible,
-.claude-usage__refresh--spinning {
+.usage-meter:hover .usage-meter__refresh,
+.usage-meter__refresh:focus-visible,
+.usage-meter__refresh--spinning {
   opacity: 1;
 }
 
-.claude-usage__refresh:hover:not(:disabled) {
+.usage-meter__refresh:hover:not(:disabled) {
   color: var(--text-primary);
   background: var(--surface-hover);
 }
 
-.claude-usage__refresh:disabled {
+.usage-meter__refresh:disabled {
   cursor: default;
 }
 
-.claude-usage__refresh--spinning svg {
+.usage-meter__refresh--spinning svg {
   animation: spin 0.9s linear infinite;
 }
 
-.claude-usage__account {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-
-.claude-usage__account + .claude-usage__account {
-  padding-top: 7px;
-  border-top: 1px solid var(--border-subtle);
-}
-
-.claude-usage__account-head {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  min-width: 0;
-  font-size: var(--font-xs);
-  line-height: 1.2;
-}
-
-.claude-usage__name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--text-primary);
-  font-weight: 600;
-}
-
-.claude-usage__flag {
-  flex: 0 0 auto;
-  color: var(--status-fallback);
-  font-size: 10px;
-  white-space: nowrap;
-}
-
-.claude-usage__scoped {
-  flex: 0 0 auto;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.claude-usage__plan {
-  flex: 0 0 auto;
-  margin-left: auto;
-  color: var(--text-muted);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  white-space: nowrap;
-}
-
-/* Colunas em ch da fonte mono: rótulo, barra, "100%" e o reset mais
-   comprido ("sáb 14:30"), então as barras das duas linhas se alinham. */
-.claude-usage__row {
+/* Uma grade só para todas as linhas: rótulos de tamanhos diferentes ("5h",
+   "Total") e resets ("39 min", "25/10") ainda deixam as barras alinhadas. */
+.usage-meter__rows {
   display: grid;
-  grid-template-columns: 2ch minmax(0, 1fr) 4ch 9ch;
+  grid-template-columns: max-content minmax(0, 1fr) max-content max-content;
   align-items: center;
   column-gap: 6px;
+  row-gap: 6px;
   font-family: var(--font-mono);
   font-size: 10px;
   font-variant-numeric: tabular-nums;
   line-height: 1;
 }
 
-.claude-usage__label {
+.usage-meter__row {
+  display: contents;
+}
+
+.usage-meter__label {
   color: var(--text-muted);
   font-weight: 600;
 }
 
 /* Sem overflow: hidden — a marca do ritmo passa um pouco acima e abaixo. */
-.claude-usage__track {
+.usage-meter__track {
   position: relative;
   height: 4px;
   border-radius: 999px;
   background: var(--bg-4);
 }
 
-.claude-usage__fill {
+.usage-meter__fill {
   max-width: 100%;
   height: 100%;
   border-radius: 999px;
   transition: width var(--transition-normal), background var(--transition-fast);
 }
 
-.claude-usage__pace {
+.usage-meter__pace {
   position: absolute;
   top: -2px;
   bottom: -2px;
@@ -491,62 +472,52 @@
   pointer-events: none;
 }
 
-.claude-usage__value {
+.usage-meter__value {
+  min-width: 4ch;
   font-weight: 600;
   text-align: right;
 }
 
-.claude-usage__reset {
-  overflow: hidden;
-  text-overflow: ellipsis;
+.usage-meter__reset {
   white-space: nowrap;
   color: var(--text-secondary);
   text-align: right;
 }
 
-.claude-usage__row--limit .claude-usage__reset {
+.usage-meter__row--limit .usage-meter__reset {
   color: var(--status-error);
 }
 
-.claude-usage__account--stale .claude-usage__row {
+.usage-meter--stale .usage-meter__rows,
+.usage-meter--stale .usage-meter__compact-track {
   opacity: 0.55;
 }
 
-.claude-usage__note {
+.usage-meter__note {
   color: var(--text-muted);
   font-size: 10px;
   line-height: 1.3;
 }
 
-.claude-usage--compact {
+.usage-meter--compact {
   gap: 5px;
   width: 36px;
   padding: 6px 5px;
 }
 
-.claude-usage__compact-icon {
+.usage-meter__compact-icon {
   align-self: center;
   color: var(--text-muted);
 }
 
-.claude-usage__compact-account {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.claude-usage__compact-account--stale {
-  opacity: 0.55;
-}
-
-.claude-usage__compact-none {
+.usage-meter__compact-none {
   align-self: center;
   color: var(--text-muted);
   font-size: 10px;
   line-height: 1;
 }
 
-.claude-usage__compact-track {
+.usage-meter__compact-track {
   height: 3px;
   border-radius: 999px;
   background: var(--bg-4);

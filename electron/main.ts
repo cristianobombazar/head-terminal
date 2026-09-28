@@ -47,7 +47,10 @@ import { PtyService, type PtyServiceEvent } from "./services/pty-service";
 import { readLanguagePreference } from "./services/language-preference";
 import { systemLanguages } from "./system-languages";
 import { getResourceUsage } from "./services/resource-usage-service";
-import { ClaudeUsageService } from "./services/claude-usage-service";
+import { ClaudeUsageAdapter } from "./services/claude-usage";
+import { CodexUsageAdapter } from "./services/codex-usage";
+import { CursorUsageAdapter } from "./services/cursor-usage";
+import { UsageService } from "./services/usage-service";
 import { SecretService } from "./services/secret-service";
 import * as systemService from "./services/system-service";
 import { ensureAgentClis } from "./services/agent-cli-install-service";
@@ -379,8 +382,13 @@ async function createServices(): Promise<{
   const voice = new VoiceService({ secrets });
   const live = new LiveBrainstormService({ secrets, homeDir: systemService.getHome() });
   const mcp = new McpService();
-  const claudeUsage = new ClaudeUsageService({
-    home: () => systemService.getHome(),
+  const home = () => systemService.getHome();
+  const usage = new UsageService({
+    adapters: {
+      claude: new ClaudeUsageAdapter({ home }),
+      codex: new CodexUsageAdapter({ home }),
+      cursor: new CursorUsageAdapter({ home }),
+    },
     // net.fetch goes through the system proxy, like the rest of Chromium.
     fetch: (url, init) => net.fetch(url, init),
     userAgent: `HeadTerminal/${app.getVersion()}`,
@@ -465,7 +473,7 @@ async function createServices(): Promise<{
     voice,
     live,
     mcp,
-    claudeUsage,
+    usage,
     sessions: {
       listResumable: (cwd, agent, claudeConfigDir) =>
         listResumableSessions(cwd, agent, claudeConfigDir, agentSessionRoots),

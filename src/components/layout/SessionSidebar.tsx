@@ -68,9 +68,9 @@ import {
   IconSidebarExpand,
 } from "../ui/Icons";
 import { StatusDot, useTerminalStatusCounts } from "../ui/StatusDot";
-import { ClaudeUsageMeter } from "./ClaudeUsageMeter";
 import { SessionContextMenu } from "./SessionContextMenu";
 import { SystemResourceMeter } from "./SystemResourceMeter";
+import { UsageMeter } from "./UsageMeter";
 
 interface SessionSidebarProps {
   sessions: AgentSession[];
@@ -727,11 +727,10 @@ export function SessionSidebar({
             <IconPlus size={16} />
           </button>
         )}
-        <ClaudeUsageMeter
-          sessions={sessions}
+        <UsageMeter
+          session={sessions.find((session) => session.id === activeSessionId) ?? null}
           profiles={claudeProfiles}
           collapsed={collapsed}
-          accountFilter={activeAccountFilter}
         />
         <SystemResourceMeter collapsed={collapsed} />
       </div>

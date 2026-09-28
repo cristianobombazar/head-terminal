@@ -164,48 +164,55 @@ export interface ResourceUsage {
   disk: DiskUsage | null;
 }
 
-/** One rate-limit window of a Claude subscription, as `/usage` shows it. */
-export interface ClaudeUsageWindow {
-  /** Share of the window already used, 0-100. */
-  percent: number;
-  /** When the window starts over (epoch ms); null while no window is open —
-   * the five-hour one only starts with the next message. */
-  resetsAt: number | null;
-}
+/** Agents whose plan limits the sidebar can show. */
+export type UsageProvider = "claude" | "codex" | "cursor";
 
-/** A weekly window that only counts one model or surface ("Fable"). */
-export interface ClaudeUsageScopedWindow extends ClaudeUsageWindow {
-  label: string;
+/**
+ * Whose usage to read. A Claude pane runs on one of the app's profiles;
+ * `global` is the `~/.claude` of a `claude` typed in a Shell session.
+ * Codex and Cursor have one login per machine.
+ */
+export type UsageTarget =
+  | { provider: "claude"; profileId: string }
+  | { provider: "codex" }
+  | { provider: "cursor" };
+
+/** One limit of a plan, as the agent's own usage screen shows it. */
+export interface UsageWindow {
+  /** `session`: the rolling five hours. `week`: seven days. `cycle`: a
+   * billing period (Cursor's month). */
+  kind: "session" | "week" | "cycle";
+  /** What the window counts when it is not everything: a model ("Fable"),
+   * a pool ("API"). */
+  label?: string;
+  /** Share already used, 0-100. */
+  percent: number;
+  /** When it starts over (epoch ms); null while no window is open — the
+   * five-hour one only starts with the next message. */
+  resetsAt: number | null;
+  /** Length of the window, for the pace mark; null when unknown. */
+  windowMs: number | null;
 }
 
 /**
- * Why the numbers are old or missing: the access token expired while no
- * Claude ran to renew it, was refused, the endpoint throttled us, the
- * network failed, or the profile has no token this app can read.
+ * Why the numbers are old or missing: the access token expired while the
+ * agent was not running to renew it, was refused, the endpoint throttled
+ * us, the network failed, or there is no login this app can read.
  */
-export type ClaudeUsageProblem =
-  | "expired"
-  | "auth"
-  | "rate-limited"
-  | "network"
-  | "no-token";
+export type UsageProblem = "expired" | "auth" | "rate-limited" | "network" | "no-token";
 
-export interface ClaudeAccountUsage {
-  /** Stable id of the account (not the account's own uuid). */
-  key: string;
-  /** Profiles signed in to this account, in the order they were asked for.
-   * Limits belong to the account, so two profiles on it share one entry. */
-  profileIds: string[];
+export interface AgentUsage {
+  provider: UsageProvider;
   /** `signed-out`: no account on the profile. `unavailable`: never read.
    * `stale`: numbers from an earlier read that could not be renewed. */
   status: "ok" | "stale" | "signed-out" | "unavailable";
-  problem?: ClaudeUsageProblem;
-  /** "Pro", "Max 5x", "Team"… */
+  problem?: UsageProblem;
+  /** "Pro", "Max 5x", "Plus", "Enterprise"… */
   plan?: string;
-  fiveHour: ClaudeUsageWindow | null;
-  sevenDay: ClaudeUsageWindow | null;
-  /** Weekly windows scoped to one model, when the plan has them. */
-  scoped: ClaudeUsageScopedWindow[];
+  /** The limits that bind everything, in the order they are shown. */
+  windows: UsageWindow[];
+  /** Narrower ones (one model, one pool): details, unless close to full. */
+  extra: UsageWindow[];
   /** When the numbers were read (epoch ms). */
   fetchedAt?: number;
 }
@@ -484,13 +491,14 @@ export interface HeadTerminalApi {
   mcp: {
     list(cwd: string, agent: SupportedAgent): Promise<McpServersPayload>;
   };
-  claudeUsage: {
+  usage: {
     /**
-     * Five-hour and weekly limits of the accounts behind these Claude
-     * profiles, one entry per account. Served from memory while fresh; the
-     * profiles in `refresh` are read again unless they just were.
+     * Plan limits of whoever `target` runs on, served from memory while
+     * fresh; `refresh` reads them again unless they just were. Null when
+     * that agent has no plan limits on this machine (Codex on an API key,
+     * no Cursor login).
      */
-    get(profileIds: string[], refresh?: string[]): Promise<ClaudeAccountUsage[]>;
+    get(target: UsageTarget, refresh?: boolean): Promise<AgentUsage | null>;
   };
   sessions: {
     listResumable(

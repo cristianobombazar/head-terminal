@@ -12,10 +12,10 @@ import type {
   AgentCliInstallResult,
   AgentCliStatus,
   AgentHookEventPayload,
+  AgentUsage,
   AllowedSecretKey,
   BrainstormAgent,
   CheckpointInput,
-  ClaudeAccountUsage,
   ClaudeHookSettings,
   ConfirmInput,
   GitChangedEvent,
@@ -48,6 +48,7 @@ import type {
   WorktreeEntry,
   WorktreeInfo,
   WorktreePlan,
+  UsageTarget,
   WorktreeStatus,
   WritePtyInput,
 } from "../types/api";
@@ -80,7 +81,7 @@ import {
 import { isPersistedWorkspace } from "../services/workspace-service";
 import { ClipboardPasteService } from "../services/clipboard-paste-service";
 import { AGENT_SESSION_ID_PATTERN } from "../services/live-brainstorm-service";
-import { CLAUDE_PROFILE_ID } from "../services/claude-usage-service";
+import { CLAUDE_USAGE_PROFILE_ID } from "../services/claude-usage";
 
 export interface IpcServices {
   terminal?: {
@@ -155,8 +156,8 @@ export interface IpcServices {
   mcp?: {
     list(cwd: string, agent: SupportedAgent): Promise<McpServersPayload>;
   };
-  claudeUsage?: {
-    get(profileIds: string[], refresh: string[]): Promise<ClaudeAccountUsage[]>;
+  usage?: {
+    get(target: UsageTarget, refresh: boolean): Promise<AgentUsage | null>;
   };
   sessions?: {
     listResumable(
@@ -499,11 +500,11 @@ export function registerIpc({
       validateAgent(agent),
     ) ?? unsupported("mcp.list"),
   );
-  handle(IPC_CHANNELS.claudeUsage.get, (_event, profileIds, refresh) =>
-    services.claudeUsage?.get(
-      validateClaudeProfileIds(profileIds, "profileIds"),
-      validateClaudeProfileIds(refresh, "refresh"),
-    ) ?? unsupported("claudeUsage.get"),
+  handle(IPC_CHANNELS.usage.get, (_event, target, refresh) =>
+    services.usage?.get(
+      validateUsageTarget(target),
+      refresh === undefined ? false : asBoolean(refresh, "refresh"),
+    ) ?? unsupported("usage.get"),
   );
   handle(IPC_CHANNELS.sessions.listResumable, (_event, cwd, agent, claudeConfigDir) =>
     services.sessions?.listResumable(
@@ -823,16 +824,21 @@ function validateAgent(value: unknown): SupportedAgent {
   return value;
 }
 
-/** Profile ids, never paths: main builds each profile's directory itself,
- * so the renderer cannot point the usage read at another folder. */
-function validateClaudeProfileIds(value: unknown, field: string): string[] {
-  const ids = asStringArray(value, field, { maxLength: 64, maxItems: 64 });
-  for (const id of ids) {
-    if (!CLAUDE_PROFILE_ID.test(id)) {
-      throw new IpcError("INVALID_INPUT", `${field} holds an invalid profile id`);
-    }
+/** Whose usage, never a path: main builds every login's location itself,
+ * so the renderer cannot point the read at another folder. */
+function validateUsageTarget(value: unknown): UsageTarget {
+  const input = asRecord(value, "target");
+  if (input.provider === "codex" || input.provider === "cursor") {
+    return { provider: input.provider };
   }
-  return ids;
+  if (input.provider !== "claude") {
+    throw new IpcError("INVALID_INPUT", "target.provider must be claude, codex or cursor");
+  }
+  const profileId = asString(input.profileId, "target.profileId", { maxLength: 64 });
+  if (!CLAUDE_USAGE_PROFILE_ID.test(profileId)) {
+    throw new IpcError("INVALID_INPUT", "target.profileId is not a Claude profile");
+  }
+  return { provider: "claude", profileId };
 }
 
 function validateResumableAgent(value: unknown): ResumableAgent {

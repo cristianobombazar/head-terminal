@@ -317,34 +317,46 @@ describe("Electron IPC contract", () => {
     expect(getClaudeSettings).not.toHaveBeenCalled();
   });
 
-  it("reads Claude usage by profile id only, never by path", async () => {
+  it("reads usage by agent and profile id only, never by path", async () => {
     const harness = fakeWindow();
-    const get = vi.fn(async () => []);
-    registerIpc({ window: harness.window, services: { claudeUsage: { get } } });
+    const get = vi.fn(async () => null);
+    registerIpc({ window: harness.window, services: { usage: { get } } });
     const profile = "5f1bd932-f0a4-449b-89fb-85ec4f2d32dc";
 
-    await invoke(IPC_CHANNELS.claudeUsage.get, harness.trustedEvent, ["default", profile], [profile]);
-    expect(get).toHaveBeenCalledWith(["default", profile], [profile]);
-
-    await invoke(IPC_CHANNELS.claudeUsage.get, harness.trustedEvent, [profile]);
-    expect(get).toHaveBeenLastCalledWith([profile], []);
-
-    for (const ids of [
-      "default",
-      ["../../.ssh"],
-      ["C:\\Users\\x\\.claude"],
-      [42],
-      Array.from({ length: 65 }, () => "default"),
+    for (const target of [
+      { provider: "claude", profileId: profile },
+      { provider: "claude", profileId: "default" },
+      { provider: "claude", profileId: "global" },
     ]) {
-      expect(() => invoke(IPC_CHANNELS.claudeUsage.get, harness.trustedEvent, ids)).toThrow(
-        /profileIds/,
+      await invoke(IPC_CHANNELS.usage.get, harness.trustedEvent, target, true);
+      expect(get).toHaveBeenLastCalledWith(target, true);
+    }
+    // Only what main needs: nothing else from the renderer rides along.
+    await invoke(IPC_CHANNELS.usage.get, harness.trustedEvent, {
+      provider: "codex",
+      path: "/etc",
+    });
+    expect(get).toHaveBeenLastCalledWith({ provider: "codex" }, false);
+
+    for (const target of [
+      undefined,
+      "claude",
+      { provider: "gemini" },
+      { provider: "claude" },
+      { provider: "claude", profileId: "../../.ssh" },
+      { provider: "claude", profileId: "C:\\Users\\x\\.claude" },
+    ]) {
+      expect(() => invoke(IPC_CHANNELS.usage.get, harness.trustedEvent, target)).toThrow(
+        /target/,
       );
     }
     expect(() =>
-      invoke(IPC_CHANNELS.claudeUsage.get, harness.trustedEvent, [profile], ["/etc"]),
+      invoke(IPC_CHANNELS.usage.get, harness.trustedEvent, { provider: "cursor" }, "yes"),
     ).toThrow(/refresh/);
-    expect(() => invoke(IPC_CHANNELS.claudeUsage.get, harness.foreignEvent, [profile])).toThrow();
-    expect(get).toHaveBeenCalledTimes(2);
+    expect(() =>
+      invoke(IPC_CHANNELS.usage.get, harness.foreignEvent, { provider: "cursor" }),
+    ).toThrow();
+    expect(get).toHaveBeenCalledTimes(4);
   });
 
   it("forwards hook events to the window and stops when unregistered", () => {
