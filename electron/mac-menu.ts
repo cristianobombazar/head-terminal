@@ -38,16 +38,16 @@ export function buildMacApplicationMenu(options: {
       ],
     },
     {
+      // Its keys stay registered — `registerAccelerator: false` is honored
+      // on Windows and Linux only. They don't get in the way because
+      // Chromium hands a ⌘ key to the page first and the menu only sees the
+      // ones the page did not prevent: every app shortcut prevents what it
+      // handles (⌘⇧Z expands a pane rather than Redo), and what is left
+      // (⌘Z / ⌘X / ⌘C / ⌘A in an input or a pane) is what these items do.
       role: "editMenu",
-      // The items stay clickable and show their keys, but the keys are not
-      // registered: a registered ⌘⇧Z would fire Redo before the page saw the
-      // "expand pane" shortcut, and a registered ⌘A would select the page
-      // instead of letting xterm select the terminal. Chromium already
-      // handles ⌘Z / ⌘X / ⌘C / ⌘V / ⌘A inside inputs on its own, and the
-      // terminal's paste surface handles ⌘V in a pane.
       submenu: (
         ["undo", "redo", "cut", "copy", "paste", "selectAll"] as const
-      ).map((role) => ({ role, registerAccelerator: false })),
+      ).map((role) => ({ role })),
     },
     { label: msg.main.menu.view, submenu: view },
     {

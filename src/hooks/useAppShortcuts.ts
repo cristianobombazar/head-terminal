@@ -12,7 +12,7 @@ import {
   sessionNotification,
 } from "../core/notifications";
 import { revealPane, toggleActivePaneMinimized } from "../core/pane-minimize";
-import { hasPrimaryModifier } from "../core/shortcuts";
+import { hasPrimaryModifier, splitShortcutDirection } from "../core/shortcuts";
 import { forEachTerminal } from "../core/terminal-registry";
 import {
   loadFontSize,
@@ -229,51 +229,41 @@ export function useKeyboardShortcuts(options: {
         options.onCloseSearch();
       }
 
-      if (!isInput && mod && event.key === "\\") {
+      // The pane shortcuts arrive from xterm's own textarea, where the
+      // keyboard sits nearly all the time — that one is the terminal, not a
+      // text field. They reach here without typing anything: xterm turns
+      // Ctrl+letter into a control character (Ctrl+M is Enter) but not with
+      // Shift held, hands ⌘ combinations on, and lets Ctrl+\ through (see
+      // createConfiguredTerminal). Handled, they must be prevented too: on
+      // macOS a ⌘ key the page leaves alone goes on to the menu, and ⌘⇧Z
+      // there is Edit › Redo.
+      const fromTerminal =
+        target instanceof HTMLTextAreaElement &&
+        target.classList.contains("xterm-helper-textarea");
+      // Alt stays out of them: AltGr arrives as Ctrl+Alt on Windows.
+      const paneShortcut =
+        (!isInput || fromTerminal) && mod && !event.altKey && event.shiftKey;
+
+      const split = splitShortcutDirection(event);
+      if ((!isInput || fromTerminal) && split) {
         event.preventDefault();
-        if (event.shiftKey) {
-          splitActivePane("horizontal");
-        } else {
-          splitActivePane("vertical");
-        }
+        splitActivePane(split);
         return;
       }
 
-      if (
-        !isInput &&
-        mod &&
-        event.shiftKey &&
-        event.key.toLowerCase() === "z"
-      ) {
+      if (paneShortcut && event.key.toLowerCase() === "z") {
         event.preventDefault();
         toggleMaximizedActivePane();
         return;
       }
 
-      // xterm turns Ctrl+letter into a control character (Ctrl+M is Enter),
-      // but not with Shift held: this reaches here without typing anything.
-      // And it arrives from xterm's own textarea, where the keyboard sits
-      // nearly all the time — that one is the terminal, not a text field.
-      const fromTerminal =
-        target instanceof HTMLTextAreaElement &&
-        target.classList.contains("xterm-helper-textarea");
-      if (
-        (!isInput || fromTerminal) &&
-        mod &&
-        event.shiftKey &&
-        event.key.toLowerCase() === "m"
-      ) {
+      if (paneShortcut && event.key.toLowerCase() === "m") {
         event.preventDefault();
         toggleActivePaneMinimized();
         return;
       }
 
-      if (
-        !isInput &&
-        mod &&
-        event.shiftKey &&
-        event.key.toLowerCase() === "w"
-      ) {
+      if (paneShortcut && event.key.toLowerCase() === "w") {
         event.preventDefault();
         if (activePaneId) {
           void closePaneWithWorktreeReview(activePaneId);
