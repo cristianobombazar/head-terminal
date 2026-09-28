@@ -5,6 +5,10 @@ const ptBR = {
   title: "Sessões",
   count: (total: number) => `${total} sessão(ões)`,
   countFiltered: (shown: number, total: number) => `${shown} de ${total} sessões na lista`,
+  waitingCount: (count: number) =>
+    `${count} ${count === 1 ? "terminal aguardando" : "terminais aguardando"} sua resposta`,
+  workingCount: (count: number) =>
+    `${count} ${count === 1 ? "terminal executando" : "terminais executando"}`,
   newSessionHint: (shortcut: string) => `Nova sessão (${shortcut})`,
   newSession: "Nova",
   newSessionAria: "Nova sessão",
@@ -33,6 +37,9 @@ const en: typeof ptBR = {
   title: "Sessions",
   count: (total) => (total === 1 ? "1 session" : `${total} sessions`),
   countFiltered: (shown, total) => `${shown} of ${total} sessions listed`,
+  waitingCount: (count) =>
+    count === 1 ? "1 terminal waiting for your answer" : `${count} terminals waiting for your answer`,
+  workingCount: (count) => (count === 1 ? "1 terminal running" : `${count} terminals running`),
   newSessionHint: (shortcut) => `New session (${shortcut})`,
   newSession: "New",
   newSessionAria: "New session",

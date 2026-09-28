@@ -27,6 +27,7 @@ import { IPC_CHANNELS, LOCALE_ARGUMENT } from "./ipc/channels";
 import { registerIpc, type IpcServices } from "./ipc/register";
 import { buildMacApplicationMenu } from "./mac-menu";
 import { adoptLoginShellPath } from "./services/shell-env";
+import { AgentHookServer } from "./services/agent-hook-server";
 import {
   listResumableSessions,
   resolveAgentSessionRoots,
@@ -51,6 +52,7 @@ import { LiveBrainstormService } from "./services/live-brainstorm-service";
 import { VoiceService } from "./services/voice-service";
 import { WorkspaceService } from "./services/workspace-service";
 import { bindWindowsTaskbarLaunch } from "./services/windows-launcher";
+import { AGENT_HOOK_PANE_ENV } from "../src/types/agent-hooks";
 
 /** `os.release()` on Windows is "10.0.26200" (major.minor.build); xterm.js
  * only wants the build number. Undefined on a format it doesn't recognize. */
@@ -104,6 +106,12 @@ if (process.env.HEAD_TERMINAL_USER_DATA) {
 } else if (!app.isPackaged) {
   app.setPath("userData", `${app.getPath("userData")} Dev`);
 }
+
+// Started from inside another Head Terminal pane (developing the app in the
+// app), the process inherits that pane's id. The hooks no longer route by it
+// (each pane's settings file carries its own id), but it has no business in
+// the panes and CLIs this instance starts.
+delete process.env[AGENT_HOOK_PANE_ENV];
 
 const e2eCdpPort = process.env.HEAD_TERMINAL_E2E_CDP;
 if (e2eCdpPort) {
@@ -348,6 +356,20 @@ async function createServices(): Promise<{
   const voice = new VoiceService({ secrets });
   const live = new LiveBrainstormService({ secrets, homeDir: systemService.getHome() });
   const mcp = new McpService();
+  const agentHooks = new AgentHookServer({
+    userDataPath,
+    log(event, meta) {
+      diagnostics.appendEvent(JSON.stringify({
+        ts: new Date().toISOString(),
+        event,
+        ...meta,
+      }));
+    },
+  });
+  // Up before the renderer asks for it: the server, the pane files and the
+  // `claude --version` probe all happen in the background, so a restored
+  // Claude pane finds them ready instead of waiting on them.
+  void agentHooks.warmUp().catch(() => undefined);
 
   const ipcServices: IpcServices = {
     terminal: pty,
@@ -423,6 +445,7 @@ async function createServices(): Promise<{
     migration: {
       loadPreferences: () => migration.loadMigratedPreferences(),
     },
+    agentHooks,
   };
 
   void ensureAgentClis()
@@ -454,6 +477,7 @@ async function createServices(): Promise<{
         disposed = true;
         await pty.dispose();
         git.dispose();
+        await agentHooks.close();
         await Promise.all([
           voice.dispose(),
           live.dispose(),
@@ -486,6 +510,11 @@ function createMainWindow(): BrowserWindow {
       // The preload reads it synchronously, so the renderer's modules load
       // already knowing which language their label tables are in.
       additionalArguments: [`${LOCALE_ARGUMENT}${locale}`],
+      // The pane status is derived in the renderer from PTY output and agent
+      // hooks, and it fires the "needs you" notifications. A throttled
+      // renderer (window minimized or covered) would fall behind exactly when
+      // the user relies on those notifications.
+      backgroundThrottling: false,
     },
   });
 
