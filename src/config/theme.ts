@@ -1,8 +1,8 @@
 import type { ITerminalOptions } from "@xterm/xterm";
 
 import { getActiveTerminalTheme } from "../core/theme-manager";
-import { loadFontSize } from "../core/ui-preferences";
-import { getCachedPlatformInfo, isMacHost } from "../core/platform-info";
+import { loadFontSize, loadOptionAsMeta } from "../core/ui-preferences";
+import { getCachedPlatformInfo } from "../core/platform-info";
 
 // Fonte e métricas são iguais em todos os temas; as cores vêm do tema ativo
 // (src/config/themes.ts) e podem trocar em tempo de execução.
@@ -61,9 +61,11 @@ export function createTerminalOptions(): ITerminalOptions {
     minimumContrastRatio: 4.5,
     theme: getActiveTerminalTheme(),
     windowsPty: resolveWindowsPty(),
-    // On a Mac keyboard Option is the only Meta there is: without this,
-    // ⌥B / ⌥F / ⌥Enter type accented characters into the shell instead of
-    // the word-jump and newline escapes the agents and readline expect.
-    macOptionIsMeta: isMacHost(),
+    // Off by default, as in VS Code's terminal: Option types what the
+    // keyboard layout puts on it (ç, dead-key accents, € …). The keys VS Code
+    // gives Option anyway — ⌥← / ⌥→ word jumps, ⌥⌫ — come from the pane's
+    // keymap (terminal-keymap.ts), and ⌥Enter still sends ESC+CR. On, it is
+    // Meta, for Claude Code's ⌥P / ⌥T / ⌥O.
+    macOptionIsMeta: loadOptionAsMeta(),
   };
 }

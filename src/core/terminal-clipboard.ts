@@ -1,10 +1,18 @@
 import type { Terminal } from "@xterm/xterm";
 
 import { logError, logEvent } from "./logger";
+import { isMacHost } from "./platform-info";
 
 const pasteInFlight = new WeakSet<Terminal>();
 
-export function isTerminalPasteKey(event: KeyboardEvent): boolean {
+/**
+ * ⌘V on macOS, where Ctrl+V goes on to the shell as ^V like in VS Code's
+ * terminal — Claude Code reads it as its own image paste. Ctrl+V elsewhere.
+ */
+export function isTerminalPasteKey(
+  event: KeyboardEvent,
+  mac: boolean = isMacHost(),
+): boolean {
   if (event.type !== "keydown") {
     return false;
   }
@@ -19,7 +27,7 @@ export function isTerminalPasteKey(event: KeyboardEvent): boolean {
     return true;
   }
   if (event.ctrlKey && !event.metaKey) {
-    return true;
+    return !mac;
   }
   return false;
 }
