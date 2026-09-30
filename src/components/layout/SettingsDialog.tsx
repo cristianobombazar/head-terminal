@@ -34,13 +34,17 @@ import {
   type Locale,
 } from "../../i18n";
 import { setThemePreference } from "../../core/theme-manager";
+import { isMacHost } from "../../core/platform-info";
+import { forEachTerminal } from "../../core/terminal-registry";
 import {
   loadCopyOnSelect,
   loadFontSize,
+  loadOptionAsMeta,
   loadRendererPreference,
   loadThemePreference,
   saveCopyOnSelect,
   saveFontSize,
+  saveOptionAsMeta,
   saveRendererPreference,
   type TerminalRenderer,
 } from "../../core/ui-preferences";
@@ -143,6 +147,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
     useState<ThemePreference>("graphite");
   const [renderer, setRenderer] = useState<TerminalRenderer>("auto");
   const [copyOnSelect, setCopyOnSelect] = useState(false);
+  const [optionAsMeta, setOptionAsMeta] = useState(false);
   const [claudeAccounts, setClaudeAccounts] = useState<ClaudeAccountProfile[]>([]);
   const [claudeAccountDrafts, setClaudeAccountDrafts] = useState<
     Record<string, string>
@@ -177,6 +182,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
     setThemePreferenceState(loadThemePreference());
     setRenderer(loadRendererPreference());
     setCopyOnSelect(loadCopyOnSelect());
+    setOptionAsMeta(loadOptionAsMeta());
     setNewClaudeAccountName("");
     setAddingProfile(false);
     setEditingAccountId(null);
@@ -535,6 +541,27 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
                       }}
                     />
                   </label>
+                  {isMacHost() && (
+                    <label className="settings-row">
+                      <span>
+                        <strong>{msg.settings.optionAsMeta}</strong>
+                        <small>{msg.settings.optionAsMetaHint}</small>
+                      </span>
+                      <input
+                        type="checkbox"
+                        checked={optionAsMeta}
+                        onChange={(event) => {
+                          const enabled = event.target.checked;
+                          setOptionAsMeta(enabled);
+                          saveOptionAsMeta(enabled);
+                          // Open terminals too: it changes what a key types.
+                          forEachTerminal((_paneId, handle) => {
+                            handle.terminal.options.macOptionIsMeta = enabled;
+                          });
+                        }}
+                      />
+                    </label>
+                  )}
                 </div>
 
               </section>

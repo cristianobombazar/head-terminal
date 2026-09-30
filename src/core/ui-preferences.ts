@@ -9,6 +9,7 @@ const FONT_SIZE_KEY = "head-terminal.font-size";
 const THEME_KEY = "head-terminal.theme";
 const RENDERER_KEY = "head-terminal.renderer";
 const COPY_ON_SELECT_KEY = "head-terminal.copy-on-select";
+const OPTION_AS_META_KEY = "head-terminal.option-as-meta";
 const RECENT_CWDS_KEY = "head-terminal.recent-cwds";
 const LAST_AGENT_KEY = "head-terminal.last-agent";
 const LAST_CLAUDE_ACCOUNT_KEY = "head-terminal.last-claude-account";
@@ -183,6 +184,23 @@ export function loadCopyOnSelect(): boolean {
 export function saveCopyOnSelect(enabled: boolean): void {
   copyOnSelectCache = enabled;
   storageSet(COPY_ON_SELECT_KEY, enabled ? "1" : "0");
+}
+
+let optionAsMetaCache: boolean | null = null;
+
+/**
+ * macOS: ⌥ acts as Meta in the terminal instead of typing what the keyboard
+ * layout puts on it — VS Code's `terminal.integrated.macOptionIsMeta`, off
+ * by default like there.
+ */
+export function loadOptionAsMeta(): boolean {
+  optionAsMetaCache ??= storageGet(OPTION_AS_META_KEY) === "1";
+  return optionAsMetaCache;
+}
+
+export function saveOptionAsMeta(enabled: boolean): void {
+  optionAsMetaCache = enabled;
+  storageSet(OPTION_AS_META_KEY, enabled ? "1" : "0");
 }
 
 export function loadRecentCwds(): string[] {

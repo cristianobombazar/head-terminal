@@ -22,6 +22,9 @@ const ptBR = {
   rendererAuto: "Automática",
   copyOnSelect: "Copiar ao selecionar",
   copyOnSelectHint: "Envia o texto selecionado para a área de transferência",
+  optionAsMeta: "Option como Meta",
+  optionAsMetaHint:
+    "⌥ vira Meta (⌥P, ⌥T e ⌥O do Claude Code) em vez de digitar ç e símbolos — o macOptionIsMeta do VS Code",
   language: "Idioma",
   languageHint: "Muda o app inteiro na hora",
   languageAuto: (name: string) => `Automático — ${name}`,
@@ -89,6 +92,9 @@ const en: typeof ptBR = {
   rendererAuto: "Automatic",
   copyOnSelect: "Copy on select",
   copyOnSelectHint: "Sends the selected text to the clipboard",
+  optionAsMeta: "Option as Meta",
+  optionAsMetaHint:
+    "⌥ acts as Meta (Claude Code's ⌥P, ⌥T and ⌥O) instead of typing ç and symbols — VS Code's macOptionIsMeta",
   language: "Language",
   languageHint: "Changes the whole app right away",
   languageAuto: (name) => `Automatic — ${name}`,

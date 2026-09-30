@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 
+import { isMacHost } from "../../core/platform-info";
 import { msg } from "../../i18n";
 
 interface SearchBarProps {
@@ -34,7 +35,14 @@ export function SearchBar({
         placeholder={msg.terminal.search.placeholder}
         onChange={(event) => onQueryChange(event.target.value)}
         onKeyDown={(event) => {
-          if (event.key === "Enter") {
+          // ⌘G / ⇧⌘G too on macOS, as in VS Code's terminal find.
+          const findAgain =
+            isMacHost() &&
+            event.metaKey &&
+            !event.ctrlKey &&
+            !event.altKey &&
+            event.code === "KeyG";
+          if (event.key === "Enter" || findAgain) {
             event.preventDefault();
             if (event.shiftKey) {
               onPrevious();

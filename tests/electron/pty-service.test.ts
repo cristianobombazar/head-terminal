@@ -146,6 +146,48 @@ describe("PtyService", () => {
     expect(env.CLAUDE_CONFIG_DIR).toBe("/home/dev/.pane-account");
   });
 
+  it("drops what the launching terminal says about itself, like Warp's EDITOR=vi", () => {
+    const { service, calls } = harness({
+      PATH: "/bin",
+      HOME: "/home/dev",
+      LANG: "pt_BR.UTF-8",
+      JAVA_HOME: "/opt/java",
+      // `npm run install:mac` in Warp: `open` hands the app Warp's environment.
+      EDITOR: "vi",
+      VISUAL: "vim",
+      GIT_EDITOR: "true",
+      TERM_PROGRAM: "WarpTerminal",
+      TERM_PROGRAM_VERSION: "v0.2026.09.24",
+      WARP_IS_LOCAL_SHELL_SESSION: "1",
+      ITERM_SESSION_ID: "w0t0p0",
+      LC_TERMINAL: "iTerm2",
+    });
+
+    service.spawn(1, { id: "pane-1", command: "/bin/zsh", cwd: "/workspace" });
+
+    const env = calls[0]?.options.env ?? {};
+    // zsh picks its vi keymap when EDITOR mentions vi: no Ctrl+R, no ⌥→.
+    for (const key of [
+      "EDITOR",
+      "VISUAL",
+      "GIT_EDITOR",
+      "TERM_PROGRAM",
+      "TERM_PROGRAM_VERSION",
+      "WARP_IS_LOCAL_SHELL_SESSION",
+      "ITERM_SESSION_ID",
+      "LC_TERMINAL",
+    ]) {
+      expect(env[key], key).toBeUndefined();
+    }
+    expect(env).toMatchObject({
+      PATH: "/bin",
+      HOME: "/home/dev",
+      LANG: "pt_BR.UTF-8",
+      JAVA_HOME: "/opt/java",
+      TERM: "xterm-256color",
+    });
+  });
+
   it("leaves a pane without its own account on the default Claude config", () => {
     const { service, calls } = harness({
       PATH: "/bin",

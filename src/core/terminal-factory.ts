@@ -14,6 +14,11 @@ import {
   isTerminalPasteKey,
   pasteClipboardIntoTerminal,
 } from "./terminal-clipboard";
+import {
+  isAppShortcutKey,
+  macTerminalKeyAction,
+  type TerminalKeyAction,
+} from "./terminal-keymap";
 import { isMacHost } from "./platform-info";
 import { splitShortcutDirection } from "./shortcuts";
 
@@ -109,13 +114,15 @@ export function createConfiguredTerminal(): ConfiguredTerminal {
 
     const mod = event.ctrlKey || event.metaKey;
     if (mod && event.shiftKey && event.key.toLowerCase() === "c") {
-      const selection = terminal.getSelection();
-      if (selection) {
+      if (terminal.hasSelection()) {
         event.preventDefault();
-        void window.headTerminal.clipboard.writeText(selection).catch((error) => {
-          logError("terminal.clipboard_write_failed", error);
-        });
+        copySelection(terminal);
       }
+      return false;
+    }
+
+    // And for Ctrl+Tab, which xterm would send as a Tab: it switches sessions.
+    if (isAppShortcutKey(event)) {
       return false;
     }
 
@@ -129,6 +136,16 @@ export function createConfiguredTerminal(): ConfiguredTerminal {
     if (enterSequence) {
       event.preventDefault();
       terminal.input(enterSequence);
+      return false;
+    }
+
+    const action = macTerminalKeyAction(event, {
+      hasSelection: terminal.hasSelection(),
+      normalBuffer: terminal.buffer.active.type === "normal",
+    });
+    if (action) {
+      event.preventDefault();
+      runTerminalKeyAction(terminal, action);
       return false;
     }
 
@@ -147,6 +164,45 @@ export function createConfiguredTerminal(): ConfiguredTerminal {
   }
 
   return { terminal, fitAddon, searchAddon };
+}
+
+function copySelection(terminal: Terminal): void {
+  const selection = terminal.getSelection();
+  if (!selection) {
+    return;
+  }
+  void window.headTerminal.clipboard.writeText(selection).catch((error) => {
+    logError("terminal.clipboard_write_failed", error);
+  });
+}
+
+function runTerminalKeyAction(terminal: Terminal, action: TerminalKeyAction): void {
+  switch (action.kind) {
+    case "send":
+      terminal.input(action.data);
+      return;
+    case "copy":
+      copySelection(terminal);
+      return;
+    case "clear":
+      terminal.clear();
+      return;
+    case "clearSelection":
+      terminal.clearSelection();
+      return;
+    case "scrollPages":
+      terminal.scrollPages(action.amount);
+      return;
+    case "scrollLines":
+      terminal.scrollLines(action.amount);
+      return;
+    case "scrollToTop":
+      terminal.scrollToTop();
+      return;
+    case "scrollToBottom":
+      terminal.scrollToBottom();
+      return;
+  }
 }
 
 export interface WebglController {

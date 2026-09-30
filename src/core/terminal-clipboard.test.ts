@@ -38,6 +38,13 @@ describe("isTerminalPasteKey", () => {
     expect(isTerminalPasteKey(new KeyboardEvent("keyup", { key: "v", ctrlKey: true }))).toBe(false);
     expect(isTerminalPasteKey(key({ key: "Process", code: "KeyV", ctrlKey: true }))).toBe(true);
   });
+
+  it("pastes only on ⌘V on macOS, where Ctrl+V goes on to the shell as ^V", () => {
+    expect(isTerminalPasteKey(key({ key: "v", metaKey: true }), true)).toBe(true);
+    expect(isTerminalPasteKey(key({ key: "V", metaKey: true, shiftKey: true }), true)).toBe(true);
+    expect(isTerminalPasteKey(key({ key: "v", ctrlKey: true }), true)).toBe(false);
+    expect(isTerminalPasteKey(key({ key: "V", ctrlKey: true, shiftKey: true }), true)).toBe(false);
+  });
 });
 
 describe("pasteClipboardIntoTerminal", () => {

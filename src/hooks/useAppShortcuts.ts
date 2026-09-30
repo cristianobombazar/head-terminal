@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 
 import { fitPanes } from "../core/pane-fit-registry";
+import { isMacHost } from "../core/platform-info";
 import { collectPaneIds } from "../core/session-layout";
-import { useSessionStore } from "../core/session-manager";
+import { isPaneOnScreen, useSessionStore } from "../core/session-manager";
 import { closePaneWithWorktreeReview } from "../core/worktree";
 import {
   notifyPaneDone,
@@ -131,6 +132,35 @@ export function useActivityNotifications(): void {
   }, []);
 }
 
+const PANE_FOCUS_KEYS: Record<string, number> = {
+  ArrowLeft: -1,
+  ArrowUp: -1,
+  ArrowRight: 1,
+  ArrowDown: 1,
+};
+
+/**
+ * Hands the keyboard to the pane before or after the active one among those
+ * on screen in its session, wrapping around like VS Code's split terminals.
+ * False when there is no other pane to go to.
+ */
+function focusSiblingPane(delta: number): boolean {
+  const state = useSessionStore.getState();
+  const session = state.sessions.find((item) => item.id === state.activeSessionId);
+  if (!session || !state.activePaneId) {
+    return false;
+  }
+  const paneIds = collectPaneIds(session.layout).filter((paneId) =>
+    isPaneOnScreen(state, paneId),
+  );
+  const index = paneIds.indexOf(state.activePaneId);
+  if (paneIds.length < 2 || index < 0) {
+    return false;
+  }
+  state.setActivePaneId(paneIds[(index + delta + paneIds.length) % paneIds.length]);
+  return true;
+}
+
 export function useKeyboardShortcuts(options: {
   onCreateSession: () => void;
   onCommandPalette: () => void;
@@ -148,14 +178,31 @@ export function useKeyboardShortcuts(options: {
   );
 
   useEffect(() => {
+    const cycleSession = (delta: number) => {
+      if (sessions.length < 2) {
+        return;
+      }
+      const currentIndex = sessions.findIndex(
+        (session) => session.id === activeSessionId,
+      );
+      const nextIndex =
+        (currentIndex + delta + sessions.length) % sessions.length;
+      setActiveSessionId(sessions[nextIndex].id);
+    };
+
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target;
+      // A text field of the app's own UI. xterm's helper textarea is not one:
+      // it is the terminal, and search, zoom and the session keys below work
+      // from a focused pane too.
       const isInput =
-        target instanceof HTMLInputElement ||
-        target instanceof HTMLTextAreaElement;
+        (target instanceof HTMLInputElement ||
+          target instanceof HTMLTextAreaElement) &&
+        !target.classList.contains("xterm-helper-textarea");
       // Ctrl on Windows/Linux, ⌘ on macOS. Only Ctrl+Tab below stays on
-      // Control everywhere: ⌘Tab is the system's app switcher.
-      const mod = hasPrimaryModifier(event);
+      // Control everywhere: ⌘Tab is the system's app switcher. Never both:
+      // ⌃⌘F is the menu's full screen, not search.
+      const mod = hasPrimaryModifier(event) && !(event.ctrlKey && event.metaKey);
 
       if (mod && event.shiftKey && event.key.toLowerCase() === "p") {
         event.preventDefault();
@@ -277,21 +324,31 @@ export function useKeyboardShortcuts(options: {
 
       if (event.key === "Tab" && event.ctrlKey && !event.metaKey) {
         event.preventDefault();
-        if (sessions.length < 2) {
-          return;
-        }
-
-        const currentIndex = sessions.findIndex(
-          (session) => session.id === activeSessionId,
-        );
-        const delta = event.shiftKey ? -1 : 1;
-        const nextIndex =
-          (currentIndex + delta + sessions.length) % sessions.length;
-        setActiveSessionId(sessions[nextIndex].id);
+        cycleSession(event.shiftKey ? -1 : 1);
         return;
       }
 
-      if (!mod || (event.ctrlKey && event.metaKey)) {
+      // VS Code's terminal on macOS: ⌘⇧[ / ⌘⇧] go to the previous / next
+      // terminal — a session here — and ⌥⌘ with an arrow to the previous /
+      // next split pane.
+      if (isMacHost() && event.metaKey && !event.ctrlKey) {
+        if (
+          event.shiftKey &&
+          !event.altKey &&
+          (event.code === "BracketLeft" || event.code === "BracketRight")
+        ) {
+          event.preventDefault();
+          cycleSession(event.code === "BracketLeft" ? -1 : 1);
+          return;
+        }
+        const paneDelta = PANE_FOCUS_KEYS[event.key];
+        if (event.altKey && !event.shiftKey && paneDelta && focusSiblingPane(paneDelta)) {
+          event.preventDefault();
+          return;
+        }
+      }
+
+      if (!mod) {
         return;
       }
 

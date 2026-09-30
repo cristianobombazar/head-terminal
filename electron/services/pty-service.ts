@@ -217,6 +217,27 @@ const PARENT_AGENT_ENV = new Set([
   "CLAUDE_PID",
 ]);
 
+/** What the terminal the app was started from says about itself — `open` or
+ * `npm run install:mac` in Warp, an agent's `npm run start:dev` — and a pane,
+ * a terminal of its own, must not inherit; its shell sets the user's editor
+ * again from their own profile. Warp exports EDITOR=vi, and zsh picks its vi
+ * keymap whenever EDITOR or VISUAL mentions vi: Ctrl+R, Ctrl+A / Ctrl+E and
+ * the ⌥→ word jump then did nothing. TERM_PROGRAM told Claude Code it was
+ * running in Warp, and an agent's GIT_EDITOR=true made `git commit` give up. */
+const LAUNCHING_TERMINAL_ENV = new Set([
+  "EDITOR",
+  "VISUAL",
+  "GIT_EDITOR",
+  "TERM_PROGRAM",
+  "TERM_PROGRAM_VERSION",
+  "TERM_SESSION_ID",
+  "LC_TERMINAL",
+  "LC_TERMINAL_VERSION",
+  "WT_SESSION",
+  "WT_PROFILE_ID",
+]);
+const LAUNCHING_TERMINAL_PREFIXES = ["WARP_", "ITERM_", "KITTY_", "WEZTERM_", "GHOSTTY_"];
+
 function buildEnvironment(
   base: NodeJS.ProcessEnv,
   overrides: Record<string, string> | undefined,
@@ -240,7 +261,12 @@ function buildEnvironment(
   // A pane is always a top-level session. The per-pane overrides below still
   // win, and a login shell still applies whatever the user's own profile sets.
   for (const key of Object.keys(env)) {
-    if (PARENT_AGENT_ENV.has(key) || key.startsWith("CLAUDE_CODE_")) {
+    if (
+      PARENT_AGENT_ENV.has(key) ||
+      key.startsWith("CLAUDE_CODE_") ||
+      LAUNCHING_TERMINAL_ENV.has(key) ||
+      LAUNCHING_TERMINAL_PREFIXES.some((prefix) => key.startsWith(prefix))
+    ) {
       delete env[key];
     }
   }
